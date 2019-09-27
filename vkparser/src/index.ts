@@ -3,7 +3,7 @@ import config from "./config";
 import { getSubjects, Subject } from "./utils/mongo";
 import { getGroups } from "./utils/groups";
 import { getPosts } from "./utils/posts";
-import { BulkWriteResult } from "mongodb";
+import { getComments } from "./utils/comments";
 
 const parser = new VK({
   token: config.token,
@@ -12,17 +12,18 @@ const parser = new VK({
 
 async function parse(
   name: string,
-  parseFunc: (parser: VK, subject: Subject) => Promise<BulkWriteResult>
+  parseFunc: (parser: VK, subject: Subject) => Promise<any>
 ) {
   const start = Date.now();
   const subjects = await getSubjects();
   for (const subject of subjects) {
-    const res = await parseFunc(parser, subject);
+    const res: any = await parseFunc(parser, subject);
     if (res) {
       const logRes = {
         nInserted: res.nInserted,
         nUpserted: res.nUpserted,
         nModified: res.nModified,
+        nMatched: res.nMatched,
       };
       console.log(JSON.stringify(logRes));
     }
@@ -32,8 +33,6 @@ async function parse(
   console.log(`${name} parsing takes ${diff / 1000} seconds`);
 }
 
-parse("groups", getGroups)
-  .then(() => parse("posts", getPosts))
-  .catch(err => {
-    console.log(err);
-  });
+parse("comments", getComments).catch(err => {
+  console.log(err);
+});
