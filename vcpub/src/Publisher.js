@@ -1,4 +1,5 @@
 const MongoClient = require('mongodb').MongoClient;
+const fetch = require('node-fetch');
 
 module.exports = class {
     constructor(conf) {
@@ -38,6 +39,32 @@ module.exports = class {
     }
 
     async process() {
+        // await this.vcAuth();
+    }
+
+    async vcAuth() {
+        const params = new URLSearchParams;
+        params.append('id', this.conf.vcru.subsiteId);
+
+        let headers;
+
+        const result = await fetch(`${this.conf.vcru.apiHost}/auth/possess`, {
+            method: 'POST',
+            body: params,
+            headers: {
+                'X-Device-Token': this.conf.vcru.apiToken,
+            },
+        }).then(res => {
+            headers = res.headers.raw();
+            return res.json();
+        });
+
+        // console.log('headers:', headers);
+        // console.log('result:', result);
+
+        const posToken = headers['X-Device-Possession-Token'.toLowerCase()];
+
+        return posToken;
     }
 
     wait(timeMs) {

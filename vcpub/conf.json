@@ -8,6 +8,10 @@
         }
     },
     "vcru": {
-        "subsite": "https://vc.ru/apitests"
+        "apiHost": "https://api.vc.ru/v1.8",
+        "subsite": "https://vc.ru/s/Digitalghost",
+        "subsiteId": 369108,
+        "maxRPS": 3,
+        "apiToken": "d08f011c82c623d6b8ba43cc2d6169dbf14d9a391e08edfcab4fabd39b07ba51"
     }
 }

@@ -4,7 +4,9 @@
   "description": "publishes final posts and comments to vc.ru subsite via vc.ru API",
   "main": "vcpub.js",
   "scripts": {
-    "vcpub": "node src/vcpub.js"
+    "vcpub": "node src/vcpub.js",
+    "docker-re": "cd ../docker && docker-compose stop vcpub && docker-compose up --build --force-recreate vcpub",
+    "docker": "cd ../docker && docker-compose stop vcpub && docker-compose up vcpub"
   },
   "repository": {
     "type": "git",
@@ -23,6 +25,7 @@
   "homepage": "https://github.com/thepowerfuldeez/digital-ghost#readme",
   "dependencies": {
     "mongodb": "^3.3.2",
+    "node-fetch": "^2.6.0",
     "saslprep": "^1.0.3"
   }
 }
