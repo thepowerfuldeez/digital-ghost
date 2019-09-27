@@ -7,9 +7,10 @@
     {
       "type": "node",
       "request": "launch",
-      "name": "Launch Program",
-      "program": "${workspaceFolder}/build/index.js",
-      "outFiles": ["${workspaceFolder}/**/*.js"]
+      "name": "Launch parser",
+      "program": "${workspaceFolder}/vkparser/build/index.js",
+      "outFiles": ["${workspaceFolder}/**/*.js"],
+      "console": "integratedTerminal"
     }
   ]
 }
