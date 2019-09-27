@@ -1,0 +1,13 @@
+{
+    "sleepIntervalMs": 300000,
+    "mongo": {
+        "url": "mongodb://root:7kB5RqW8wQ572nGOUmp5t4@mongo:27017",
+        "options": {
+            "useNewUrlParser": true,
+            "useUnifiedTopology": true
+        }
+    },
+    "vcru": {
+        "subsite": "https://vc.ru/apitests"
+    }
+}

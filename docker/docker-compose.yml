@@ -9,5 +9,12 @@ services:
       TZ: Etc/UTC
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: 7kB5RqW8wQ572nGOUmp5t4
-    ports:
-      - 95.213.38.3:27017:27017
+  vcpub:
+    build: ../vcpub
+    volumes:
+      - ../vcpub/conf.json:/vcpub/conf.json:ro
+      - ../vcpub/src/:/vcpub/src/:ro
+    restart: always
+    environment:
+      TZ: Etc/UTC
+    command: npm run vcpub

@@ -1,0 +1,28 @@
+{
+  "name": "vcpub",
+  "version": "1.0.0",
+  "description": "publishes final posts and comments to vc.ru subsite via vc.ru API",
+  "main": "vcpub.js",
+  "scripts": {
+    "vcpub": "node src/vcpub.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/thepowerfuldeez/digital-ghost.git"
+  },
+  "keywords": [
+    "api",
+    "publish",
+    "vcru"
+  ],
+  "author": "marsgpl",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/thepowerfuldeez/digital-ghost/issues"
+  },
+  "homepage": "https://github.com/thepowerfuldeez/digital-ghost#readme",
+  "dependencies": {
+    "mongodb": "^3.3.2",
+    "saslprep": "^1.0.3"
+  }
+}

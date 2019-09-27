@@ -2,7 +2,7 @@
 
 ## Как работает
 
-- запускается раз в N минут через crontab
+- раз в N минут:
 - идет в монгу
 - берет посты из коллекции final_posts где state='not_published'
 - помечает их state='publishing_post'
