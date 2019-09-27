@@ -101,33 +101,23 @@ module.exports = class {
         };
     }
 
-    // async likePost(postId, sign) {
+    async likePost(postId, sign) {
+        const result = await this.call('/like', {
+            id: postId,
+            type: 'content',
+            sign,
+        });
 
-    // }
+        return result && result.response && !result.response.error && result;
+    }
 
-    // async likeComment(commentId, sign) {
+    async likeComment(commentId, sign) {
+        const result = await this.call('/like', {
+            id: commentId,
+            type: 'comment',
+            sign,
+        });
 
-    // }
+        return result && result.response && !result.response.error && result;
+    }
 };
-
-
-
-    // async vcLike(dataset) {
-    //     const apiPath = '/like';
-    //     const params = new URLSearchParams;
-
-    //     params.append('id', dataset.entityId);
-    //     params.append('type', dataset.type);
-    //     params.append('sign', dataset.sign);
-
-    //     const result = await fetch(this.conf.vcru.apiHost + apiPath, {
-    //         method: 'POST',
-    //         body: params,
-    //         headers: {
-    //             'X-Device-Token': this.conf.vcru.apiToken,
-    //         },
-    //     }).then(res => res.json());
-
-    //     console.log('result like:', result);
-    // }
-

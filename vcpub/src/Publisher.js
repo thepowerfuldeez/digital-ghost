@@ -61,9 +61,9 @@ module.exports = class {
                 text: 'Нет, не согласен. r:' + Date.now(),
             });
 
-            // await this.vcruApi.likePost(pr.id, 1);
+            await this.vcruApi.likePost(pr.id, 1);
 
-            // await this.vcruApi.likeComment(cr2.id, -1);
+            await this.vcruApi.likeComment(cr2.id, -1);
         } catch (err) {
             console.log('catch err:', err);
         }
