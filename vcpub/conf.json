@@ -11,7 +11,7 @@
         "api": {
             "rootPath": "https://api.vc.ru/v1.8",
             "token": "d08f011c82c623d6b8ba43cc2d6169dbf14d9a391e08edfcab4fabd39b07ba51",
-            "rpsLimit": 1
+            "waitAfterEachCallMs": 1000
         },
         "subsite": {
             "id": 369108,
