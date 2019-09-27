@@ -3,8 +3,12 @@
   "version": "0.0.1",
   "description": "Template node project with typescript, eslint and prettier",
   "main": "test-api.js",
-  "dependencies": {},
+  "dependencies": {
+    "mongodb": "^3.3.2",
+    "vk-io": "^4.0.0-rc.20"
+  },
   "devDependencies": {
+    "@types/mongodb": "^3.3.3",
     "@typescript-eslint/eslint-plugin": "^2.0.0",
     "@typescript-eslint/parser": "^2.0.0",
     "eslint": "^6.2.2",

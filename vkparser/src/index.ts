@@ -13,7 +13,7 @@ const parser = new VK({
   apiMode: "parallel",
 });
 
-const client = new MongoClient(config.mongo.url, {
+const client = MongoClient.connect(config.mongo.url, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
   reconnectInterval: 1000,
@@ -39,7 +39,7 @@ async function bulkUpsert(array: any[], collection: Collection, field: string) {
     bulk
       .find(search)
       .upsert()
-      .replaceOne(obj);
+      .update({ $set: obj });
   });
 
   const res = await bulk.execute();
@@ -47,7 +47,7 @@ async function bulkUpsert(array: any[], collection: Collection, field: string) {
 }
 
 async function connectToDb() {
-  const connection = await client.connect();
+  const connection = await client;
   const db = await connection.db(config.mongo.dbName);
   return db;
 }
@@ -123,10 +123,14 @@ function sliceArrayToChunk<T>(array: T[], size: number) {
 }
 
 async function parseGroups() {
+  const start = Date.now();
   const subjects = await getSubjects();
   for (const subject of subjects) {
     await getGroups(subject);
   }
+  const end = Date.now();
+  const diff = end - start;
+  console.log(`group parsing takes ${diff / 1000} seconds`);
 }
 
 parseGroups()
