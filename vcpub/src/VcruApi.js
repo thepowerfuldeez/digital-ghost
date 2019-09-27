@@ -53,18 +53,53 @@ module.exports = class {
      * post.title
      * post.text
      */
-    // async createPost(post) {
-    //     return {
-    //         id: ,
-    //         url: ,
-    //     }
-    // }
+    async createPost(post) {
+        const params = {};
 
-    // async createComment(comment) {
-    //     return {
-    //         id: ,
-    //     }
-    // }
+        params.subsite_id = post.subsiteId;
+        params.title = post.title;
+        params.text = post.text;
+        // if (post.attachments) params.attachments = JSON.stringify([ { type:'image',data:{.....} } ]);
+
+        const result = await this.call('/entry/create', params);
+        const data = result && result.response && result.response.result;
+
+        if (!data || !data.id) {
+            throw 'createPost failed: result=' + JSON.stringify(result)
+                + '; post=' + JSON.stringify(post);
+        }
+
+        return {
+            id: data.id,
+            url: data.url,
+        };
+    }
+
+    /**
+     * comment.forPostId
+     * [comment.forCommentId]
+     * comment.text
+     */
+    async createComment(comment) {
+        const params = {};
+
+        params.id = comment.forPostId;
+        params.text = comment.text;
+        if (comment.forCommentId) params.reply_to = comment.forCommentId;
+        // if (comment.attachments) params.attachments = JSON.stringify([ { type:'image',data:{.....} } ]);
+
+        const result = await this.call('/comment/add', params);
+        const data = result && result.response && result.response.result;
+
+        if (!data || !data.id) {
+            throw 'createComment failed: result=' + JSON.stringify(result)
+                + '; comment=' + JSON.stringify(comment);
+        }
+
+        return {
+            id: data.id,
+        };
+    }
 
     // async likePost(postId, sign) {
 
@@ -96,66 +131,3 @@ module.exports = class {
     //     console.log('result like:', result);
     // }
 
-    // async vcCreateComment(comment) {
-    //     const apiPath = '/comment/add';
-    //     const params = new URLSearchParams;
-
-    //     params.append('id', comment.postId);
-    //     params.append('text', comment.text);
-
-    //     if (comment.parentCommentId) {
-    //         params.append('reply_to', comment.parentCommentId);
-    //     }
-
-    //     if (comment.attachments) {
-    //         // params.append('attachments', JSON.stringify([ { type:'image',data:{.....} } ]));
-    //     }
-
-    //     const result = await fetch(this.conf.vcru.apiHost + apiPath, {
-    //         method: 'POST',
-    //         body: params,
-    //         headers: {
-    //             'X-Device-Token': this.conf.vcru.apiToken,
-    //         },
-    //     }).then(res => res.json());
-
-    //     if (!result || !result.result || !result.result.id) {
-    //         throw 'commenting failed: result=' + JSON.stringify(result)
-    //             + '; comment=' + JSON.stringify(comment);
-    //     }
-
-    //     return {
-    //         id: result.result.id,
-    //     };
-    // }
-
-    // async vcCreatePost(post) {
-    //     const apiPath = '/entry/create';
-    //     const params = new URLSearchParams;
-
-    //     params.append('title', post.title);
-    //     params.append('subsite_id', this.conf.vcru.subsiteId);
-    //     params.append('text', post.text);
-
-    //     if (post.attachments) {
-    //         // params.append('attachments', JSON.stringify([ { type:'image',data:{.....} } ]));
-    //     }
-
-    //     const result = await fetch(this.conf.vcru.apiHost + apiPath, {
-    //         method: 'POST',
-    //         body: params,
-    //         headers: {
-    //             'X-Device-Token': this.conf.vcru.apiToken,
-    //         },
-    //     }).then(res => res.json());
-
-    //     if (!result || !result.result || !result.result.id) {
-    //         throw 'posting failed: result=' + JSON.stringify(result)
-    //             + '; post=' + JSON.stringify(post);
-    //     }
-
-    //     return {
-    //         id: result.result.id,
-    //         url: result.result.url,
-    //     };
-    // }
