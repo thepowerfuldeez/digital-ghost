@@ -6,7 +6,8 @@
   "scripts": {
     "vcpub": "node src/vcpub.js",
     "docker-re": "cd ../docker && docker-compose stop vcpub && docker-compose up --build --force-recreate vcpub",
-    "docker": "cd ../docker && docker-compose stop vcpub && docker-compose up vcpub"
+    "docker": "cd ../docker && docker-compose up vcpub",
+    "docker-stop": "cd ../docker && docker-compose stop vcpub"
   },
   "repository": {
     "type": "git",

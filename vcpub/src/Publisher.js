@@ -40,29 +40,58 @@ module.exports = class {
 
     async process() {
         // await this.vcAuth();
+
+        await this.vcCreatePost({
+            title: 'Команда Digital Ghost захватила власть в Боливии',
+            text: '<p>Это текстовый блок.<br />Здесь работают мягкие переносы <i>строк</i> и <b>жирность</b> со <a href="https://ya.ru/" rel="nofollow noreferrer noopener" target="_blank">ссылками</a>.</p>',
+        });
+    }
+
+    async vcCreatePost(post) {
+        const apiPath = '/entry/create';
+
+        const params = new URLSearchParams;
+
+        params.append('title', post.title);
+        params.append('subsite_id', this.conf.vcru.subsiteId);
+        params.append('text', post.text);
+        // params.append('attachments', JSON.stringify([ { type:'image',data:{.....} } ]));
+
+        const result = await fetch(this.conf.vcru.apiHost + apiPath, {
+            method: 'POST',
+            body: params,
+            headers: {
+                'X-Device-Token': this.conf.vcru.apiToken,
+            },
+        }).then(res => res.json());
+
+        console.log('result:', result);
     }
 
     async vcAuth() {
+        let responseHeaders;
+
+        const apiPath = '/auth/possess';
+
         const params = new URLSearchParams;
+
         params.append('id', this.conf.vcru.subsiteId);
 
-        let headers;
-
-        const result = await fetch(`${this.conf.vcru.apiHost}/auth/possess`, {
+        const result = await fetch(this.conf.vcru.apiHost + apiPath, {
             method: 'POST',
             body: params,
             headers: {
                 'X-Device-Token': this.conf.vcru.apiToken,
             },
         }).then(res => {
-            headers = res.headers.raw();
+            responseHeaders = res.headers.raw();
             return res.json();
         });
 
-        // console.log('headers:', headers);
+        // console.log('responseHeaders:', responseHeaders);
         // console.log('result:', result);
 
-        const posToken = headers['X-Device-Possession-Token'.toLowerCase()];
+        const posToken = responseHeaders['X-Device-Possession-Token'.toLowerCase()];
 
         return posToken;
     }
