@@ -1,0 +1,25 @@
+{
+  "name": "ts-node-template",
+  "version": "0.0.1",
+  "description": "Template node project with typescript, eslint and prettier",
+  "main": "test-api.js",
+  "dependencies": {},
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^2.0.0",
+    "@typescript-eslint/parser": "^2.0.0",
+    "eslint": "^6.2.2",
+    "eslint-config-prettier": "^6.1.0",
+    "eslint-plugin-prettier": "^3.1.0"
+  },
+  "scripts": {
+    "start": "npm run build:live",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:live": "tsc --watch"
+  },
+  "keywords": [
+    "node",
+    "typescript"
+  ],
+  "author": "js-commander",
+  "license": "ISC"
+}
