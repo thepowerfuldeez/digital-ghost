@@ -1,3 +1,9 @@
 .DS_Store
 /docker/volumes
 *.log
+
+__pycache__
+encoder/__pycache__/
+filtering/*-data.pkl
+filtering/*.annoy
+config.py
