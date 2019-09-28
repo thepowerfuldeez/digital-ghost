@@ -43,6 +43,41 @@ export async function getComments(parser: VK, subject: Subject) {
     }
     const commentsArray = await Promise.all(promices);
     const comments = commentsArray.reduce((a, b) => a.concat(b), []);
+    // Добавляем юзера к комменту
+    parser.setOptions({ apiExecuteCount: 15 });
+    const userPromices = [];
+    const set = new Set<string>();
+    comments.forEach(x => {
+      if (x && x.from_id) {
+        set.add(x.from_id.toString());
+      }
+    });
+    const uniqIds = Array.from(set);
+    const chunks = sliceArrayToChunk<string>(uniqIds, 500);
+    for (const chunk of chunks) {
+      userPromices.push(getUser(parser, chunk));
+    }
+
+    const userObj: any = {};
+    try {
+      const usersArray = await Promise.all(userPromices);
+
+      for (const x of usersArray) {
+        for (const y of x) {
+          userObj[y.id] = y;
+        }
+      }
+      comments.forEach(x => {
+        x.user = userObj[x.from_id];
+        if (x.user && x.user.screen_name) {
+          x.user.url = `https://vk.com/${x.user.screen_name}`;
+        }
+        return x;
+      });
+    } catch (err) {
+      console.log(err.message);
+    }
+
     const res: any = await bulkUpsert(comments, commentCol, "id");
     if (res) {
       log.nInserted += res.nInserted;
@@ -96,4 +131,12 @@ async function getCommentsByPostId(
     console.error(`comments parsing error, details: ${err.message}`);
     return [];
   }
+}
+
+async function getUser(parser: VK, ids: string[]) {
+  const users = await parser.api.users.get({
+    user_ids: ids,
+    fields: ["screen_name"],
+  });
+  return users;
 }

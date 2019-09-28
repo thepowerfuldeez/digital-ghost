@@ -17,12 +17,18 @@ export async function getPosts(parser: VK, subject: Subject) {
     .find({
       subject: subject.id,
       is_closed: 0,
-      wall: 1,
+      wall: { $ne: 0 },
       members_count: { $gt: 50000 },
       parseDate: { $lt: lastParseLimit },
     })
     .sort({ members_count: -1 })
-    .project({ id: 1, _id: 0, members_count: 1, description: 1 })
+    .project({
+      id: 1,
+      _id: 0,
+      members_count: 1,
+      description: 1,
+      screen_name: 1,
+    })
     .limit(100)
     .toArray();
 
@@ -67,7 +73,9 @@ async function getPostByGroupId(
       x.subject = subject.id;
       x.members_count = group.members_count;
       x.description = group.description;
+      x.screen_name = group.screen_name;
       x.parseDate = 0;
+      x.url = `https://vk.com/${group.screen_name}?w=wall-${group.id}_${x.id}`;
       if (x.likes && x.views && x.views.count > 0) {
         x.popularity = x.likes.count / x.views.count;
       }

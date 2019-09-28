@@ -7,7 +7,7 @@ import { getPosts } from "./utils/posts";
 import { getComments } from "./utils/comments";
 import { getTrends } from "./utils/trends";
 import { getMinMongoRes } from "./utils/common";
-import { populateTop } from "./utils/populate";
+import { populateTop, populateTopPostsComments } from "./utils/populate";
 
 const parser = new VK({
   token: config.token,
@@ -60,4 +60,3 @@ function initSheduler() {
 }
 
 initSheduler();
-parse("posts", getPosts);

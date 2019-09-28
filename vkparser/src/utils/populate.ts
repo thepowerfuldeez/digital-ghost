@@ -9,7 +9,7 @@ async function getTopPosts(subject: Subject, col: Collection) {
   const dayAgo = today - day;
   const posts = await col
     .find({
-      $expr: { $gt: [{ $strLenCP: "$text" }, 50] },
+      $expr: { $gt: [{ $strLenCP: "$text" }, 200] },
       subject: subject.id,
       date: { $gt: dayAgo },
     })
