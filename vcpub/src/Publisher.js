@@ -1,9 +1,13 @@
 const { MongoClient, ObjectID } = require('mongodb');
+
 const VcruApi = require('./VcruApi');
 const wait = require('./wait');
+const rnd = require('./rnd');
+const replaceUrls = require('./replaceUrls');
 
-const URL_REGEX = /(https?:\/\/)?([^@:]:[^@:]+@)?([\-a-zа-яёЁ0-9\._]{1,256}\.[a-zа-яёЁ0-9\-]{2,24}|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})(:[0-9]{1,5})?\/?([^\s]+)?/ig;
-const URL_BAD_LAST_SYMBOLS_REGEX = /[\]\)\},\.:;\?\!"'\-]$/;
+const STATUS_NOT_PUBLISHED = 'not_published'; // or $exists:false
+const STATUS_PUBLISHING = 'publishing';
+const STATUS_PUBLISHED = 'published';
 
 module.exports = class {
     constructor(conf) {
@@ -12,71 +16,246 @@ module.exports = class {
     }
 
     async main() {
-        console.log(new Date, 'init');
         await this.init();
-
-        console.log(new Date, 'loop');
         await this.loop();
     }
 
     async init() {
-        console.log(new Date, 'init mongo');
         this.mongo = {
-            client: await this.initMongo(),
+            client: await this.initMongoClient(),
         };
 
-        this.mongo.db = this.mongo.client.db(this.conf.mongo.db);
-        this.mongo.posts = this.mongo.db.collection(this.conf.mongo.collections.posts);
-        this.mongo.comments = this.mongo.db.collection(this.conf.mongo.collections.comments);
+        this.initMongoResources();
     }
 
     destroy() {
         console.log(new Date, 'closing mongo');
+
         this.mongo && this.mongo.client && this.mongo.client.close();
     }
 
-    initMongo() {
+    initMongoClient() {
+        console.log(new Date, 'init mongo');
+
         return MongoClient.connect(this.conf.mongo.url, this.conf.mongo.options);
+    }
+
+    initMongoResources() {
+        this.mongo.db = this.mongo.client.db(this.conf.mongo.db);
+
+        Object.keys(this.conf.mongo.collections).forEach(key => {
+            if (key === 'db') {
+                throw 'mongo collection name "db" is not allowed';
+            }
+
+            this.mongo[key] = this.mongo.db.collection(this.conf.mongo.collections[key]);
+        });
     }
 
     async loop() {
         while (true) {
-            console.log(new Date, 'processing');
-            await this.process();
+            try {
+                await this.process();
 
-            console.log(new Date, `waiting ${this.conf.sleepIntervalMs}ms`);
+                this.successTrend();
+                this.successPost();
+                this.successComments();
+            } catch (error) {
+                console.log(new Date, 'Error:', error);
+
+                this.failTrend();
+                this.failPost();
+            }
+
+            console.log(new Date, `iteration wait ${this.conf.sleepIntervalMs}ms`);
             await wait(this.conf.sleepIntervalMs);
         }
     }
 
+    async bookTopTrend() {
+        console.log(new Date, 'booking trend');
+
+        const filter = {
+            state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
+        };
+
+        const update = {
+            $set: {
+                state: STATUS_PUBLISHING,
+            },
+        };
+
+        const options = {
+            sort: {
+                _id: -1, // latest
+            },
+            limit: 1,
+        };
+
+        const result = await this.mongo.trends.findOneAndUpdate(filter, update, options);
+
+        return result.value;
+    }
+
+    getPostPidFromTrend(trend) {
+        const postPids = trend.post_ids;
+
+        if (postPids && postPids.length) {
+            return postPids[rnd(0, postPids.length - 1)];
+        }
+    }
+
+    async bookPostByPid(postPid) {
+        console.log(new Date, 'booking post by postPid:', postPid);
+
+        const filter = {
+            id: postPid,
+            state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
+        };
+
+        const update = {
+            $set: {
+                state: STATUS_PUBLISHING,
+            },
+        };
+
+        const options = {
+            limit: 1,
+        };
+
+        const result = await this.mongo.posts.findOneAndUpdate(filter, update, options);
+
+        return result.value;
+    }
+
+    async getCommentsByPostPid(postPid, limit) {
+        console.log(new Date, 'searching for comments by postPid:', postPid);
+
+        const filter = {
+            post_id: postPid,
+            state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
+        };
+
+        const options = {
+            limit,
+            sort: {
+                popularity: -1, // more is first
+            },
+        };
+
+        const result = await this.mongo.comments.find(filter, options).toArray();
+
+        return result;
+    }
+
+    vcPostAttachments(mongoPost) {
+        const atts = [];
+
+        let hasPhotos = false;
+        let candidateLinkPhotoUrl;
+
+        if (mongoPost.attachments && mongoPost.attachments.length) {
+            mongoPost.attachments.forEach(attachment => {
+                if (attachment.type === 'photo' && attachment.photo) {
+                    const size = attachment.photo.sizes
+                        && attachment.photo.sizes[attachment.photo.sizes.length-1];
+
+                    if (size && size.url) {
+                        atts.push({
+                            type: 'photo',
+                            url: size.url,
+                        });
+                        hasPhotos = true;
+                    }
+                } else if (attachment.type === 'link' && attachment.link) {
+                    if (attachment.link.url) {
+                        atts.push({
+                            type: 'link',
+                            url: attachment.link.url,
+                        });
+                    }
+
+                    if (attachment.link.photo) {
+                        const size = attachment.link.photo.sizes
+                            && attachment.link.photo.sizes[attachment.link.photo.sizes.length-1];
+
+                        if (size && size.url) {
+                            candidateLinkPhotoUrl = size.url;
+                        }
+                    }
+                }
+            });
+        }
+
+        if (!hasPhotos && candidateLinkPhotoUrl) {
+            atts.unshift({
+                type: 'photo',
+                url: candidateLinkPhotoUrl,
+            });
+        }
+
+        return atts;
+    }
+
+    async createVcPost(post, commentsGood, commentsBad) {
+        return {
+            subsiteId: this.conf.vcru.subsite.id,
+            title: this.vcPostTitle(post),
+            entry: await this.vcPostEntry(post, commentsGood, commentsBad),
+            attachments: this.vcPostAttachments(mongoPost),
+        };
+    }
+
+    vcPostTitle(post) {
+        return post.title || 'NO TITLE';
+    }
+
+    async vcPostEntry(post, commentsGood, commentsBad) {
+
+    }
+
     async process() {
-        const mongoPost = await this.bookLatestPostFromMongo();
-        if (!mongoPost) return;
+        const trend = await this.bookTopTrend();
+        if (!trend) throw 'no trends left';
 
-        console.log('using post mongoId=' + mongoPost._id);
+        this.bookedTrendId = trend._id;
+        console.log(new Date, 'bookedTrendId:', this.bookedTrendId);
 
-        const comments = await this.bookCommentsFromMongoForPostId(mongoPost.id, 6);
+        const postPid = this.getPostPidFromTrend(trend);
+        if (!postPid) throw 'cant detect postPid';
 
-        const commentsPerSection = Math.floor(comments.length / 2);
-        const commentsLimit = commentsPerSection + (commentsPerSection*2===comments.length ? 0 : 1);
+        console.log(new Date, 'postPid:', postPid);
 
-        const positiveComments = comments.slice(0, commentsLimit);
-        const negativeComments = comments.slice(commentsLimit);
+        const post = await this.bookPostByPid(postPid);
+        if (!post) throw 'post not found or already booked';
 
-        // if (!positiveComments.length && !negativeComments.length) {
-        //     console.log('skip post:', mongoPost._id, 'no comments');
-        //     await this.fallbackMongoPost(mongoPost._id, 'no_comments');
-        //     return await this.process();
-        // }
+        this.bookedPostId = post._id;
+        console.log(new Date, 'bookedPostId:', this.bookedPostId);
 
-        const vcPost = await this.mongoPostToVcPost(mongoPost, positiveComments, negativeComments);
+        // 3 for good, 3 for bad
+        const comments = await this.getCommentsByPostPid(postPid, 6);
+        const commentsPerSection = Math.ceil(comments.length / 2);
+        const commentsGood = comments.slice(0, commentsPerSection);
+        const commentsBad = comments.slice(commentsPerSection);
+
+        this.bookedCommentsIds = comments.map(comment => new ObjectID(comment._id));
+
+        console.log(new Date, 'comments:', comments.length);
+        console.log(new Date, 'commentsGood:', commentsGood.length);
+        console.log(new Date, 'commentsBad:', commentsBad.length);
+        console.log(new Date, 'bookedCommentsIds:', this.bookedCommentsIds);
+
+        const vcPost = await this.createVcPost(post, commentsGood, commentsBad);
+
+        console.log('vcPost:', vcPost);
+        process.exit(1);
 
         try {
             const pr = await this.vcruApi.createPost(vcPost);
             await this.updateMongoPostByVc(mongoPost._id, pr);
             await this.updateMongoCommentsBySuccess(positiveComments, negativeComments);
         } catch (error) {
-            console.log('vc post error:', error);
+            console.log(new Date, 'vc post error:', error);
             await this.fallbackMongoPost(mongoPost._id, error);
             await this.fallbackMongoComments(positiveComments, negativeComments);
         }
@@ -138,13 +317,9 @@ module.exports = class {
         await this.mongo.posts.updateOne(filter, update);
     }
 
-    /**
-     * берет свежайший пост и бронирует его через state
-     */
     async bookLatestPostFromMongo() {
         const filter = {
-            state: 'not_published',
-            'comments.count': { $gt: 0 },
+            state: { $exists: false },
         };
 
         const update = {
@@ -160,24 +335,20 @@ module.exports = class {
             limit: 1,
         };
 
-        const result = await this.mongo.posts.findOneAndUpdate(filter, update, options);
+        const result = await this.mongo.trends.findOneAndUpdate(filter, update, options);
 
-        return result.value;
+        const parsedPostsIds = result && result.value && result.value.post_ids;
+        if (!parsedPostsIds) return;
+
+        const parsedPostId = parsedPostsIds[rnd(0, parsedPostsIds.length - 1)];
+        const post = await this.mongo.posts.findOne({ id:parsedPostId });
+
+        console.log(new Date, 'post:', post);
+        process.exit(1);
     }
 
-    async mongoPostToVcPost(mongoPost, positiveComments, negativeComments) {
-        return {
-            subsiteId: this.conf.vcru.subsite.id,
-            title: this.detectTitleInMongoPost(mongoPost),
-            // text: this.detectTextInMongoPost(mongoPost),
-            attachments: this.detectAttachmentsInMongoPost(mongoPost),
-            entry: await this.detectEntryInMongoPost(mongoPost, positiveComments, negativeComments),
-        };
-    }
 
-    /**
-     * берем первое предложение поста
-     */
+
     detectTitleInMongoPost(mongoPost) {
         return mongoPost.title.replace(/https?:\/\/([a-zа-яёЁ]+)?$/i, '').trim();
 
@@ -227,7 +398,7 @@ module.exports = class {
             blocks: [],
         };
 
-        const shortDescr = this.replaceUrls(mongoPost.description);
+        const shortDescr = replaceUrls(mongoPost.description);
 
         entry.blocks.push({
             type: 'text',
@@ -239,7 +410,7 @@ module.exports = class {
             },
         });
 
-        const fullDescr = this.replaceUrls(mongoPost.text);
+        const fullDescr = replaceUrls(mongoPost.text);
 
         entry.blocks.push({
             type: 'text',
@@ -325,131 +496,6 @@ module.exports = class {
         });
 
         return entry;
-    }
-
-    replaceUrls(text) {
-        let m = text.replace(/<a\s+href=.*?>.*?<\/a>/gi, '').match(URL_REGEX);
-
-        if (m) {
-            let used = {};
-            let shadow = '.'.repeat(text.length);
-
-            if (m.length > 1) {
-                m.sort(function(a,b) {
-                    if (a > b) {
-                        return -1;
-                    } else if (a < b) {
-                        return +1;
-                    } else {
-                        return 0;
-                    }
-                });
-            }
-
-            m.forEach(url => {
-                // remove all html
-                url = url.replace(/<\/?.*?\>/ig, '');
-
-                // remove last punctuation sign
-                let last = url.match(URL_BAD_LAST_SYMBOLS_REGEX);
-                if (last && last[0].length == 1) {
-                    url = url.slice(0, -1);
-                }
-
-                if (used[url]) { return }
-
-                let lastPos = 0;
-
-                while ( true ) {
-                    let pos = text.indexOf(url, lastPos);
-                    if (pos < 0) { break };
-
-                    if (shadow.slice(pos, pos+1) === 'x') {
-                        lastPos = pos + url.length;
-                        continue;
-                    }
-
-                    let urlFull = (url.indexOf('http') === 0 || url.indexOf('//') === 0) ? url : '//' + url;
-                    let tag = `<a href="${urlFull}" target="_blank">${url}</a>`;
-
-                    text = text.slice(0, pos) + tag + text.slice(pos + url.length);
-                    shadow = shadow.slice(0, pos) + 'x'.repeat(tag.length) + shadow.slice(pos + url.length);
-
-                    lastPos = pos + tag.length;
-                }
-
-                used[url] = true;
-            });
-
-            text = text.replace(/<a>/ig, '');
-        }
-
-        return text;
-    }
-
-    /**
-     * отрезаем первое предложение поста
-     */
-    detectTextInMongoPost(mongoPost) {
-        return this.replaceUrls(mongoPost.description)
-            + '\n\n' + this.replaceUrls(mongoPost.text);
-
-        // let text = String(mongoPost.text || '');
-
-        // const title = this.detectTitleInMongoPost(mongoPost);
-
-        // text = text.substr(title.length).replace(/^[\.\?\!\n]+/, '').trim();
-
-        // return text;
-    }
-
-    detectAttachmentsInMongoPost(mongoPost) {
-        const atts = [];
-
-        let hasPhotos = false;
-        let candidateLinkPhotoUrl;
-
-        if (mongoPost.attachments && mongoPost.attachments.length) {
-            mongoPost.attachments.forEach(attachment => {
-                if (attachment.type === 'photo' && attachment.photo) {
-                    const size = attachment.photo.sizes
-                        && attachment.photo.sizes[attachment.photo.sizes.length-1];
-
-                    if (size && size.url) {
-                        atts.push({
-                            type: 'photo',
-                            url: size.url,
-                        });
-                        hasPhotos = true;
-                    }
-                } else if (attachment.type === 'link' && attachment.link) {
-                    if (attachment.link.url) {
-                        atts.push({
-                            type: 'link',
-                            url: attachment.link.url,
-                        });
-                    }
-
-                    if (attachment.link.photo) {
-                        const size = attachment.link.photo.sizes
-                            && attachment.link.photo.sizes[attachment.link.photo.sizes.length-1];
-
-                        if (size && size.url) {
-                            candidateLinkPhotoUrl = size.url;
-                        }
-                    }
-                }
-            });
-        }
-
-        if (!hasPhotos && candidateLinkPhotoUrl) {
-            atts.unshift({
-                type: 'photo',
-                url: candidateLinkPhotoUrl,
-            });
-        }
-
-        return atts;
     }
 }
 

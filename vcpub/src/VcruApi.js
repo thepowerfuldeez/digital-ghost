@@ -1,17 +1,17 @@
 const fetch = require('node-fetch');
-const wait = require('./wait');
 
-const nextTokenTab = {
-    token: 'token2',
-    token2: 'token3',
-    token3: 'token',
-}
+const wait = require('./wait');
 
 module.exports = class {
     constructor(conf) {
         this.conf = conf;
-        this.currentToken = 'token';
-        this.currentTokenValue = this.conf[this.currentToken];
+        this.tokenIndex = 0;
+        this.token = this.conf.tokens[this.tokenIndex];
+
+        if (this.conf.verbose) {
+            console.log(new Date, 'vc api', `token index: ${this.tokenIndex}`);
+            console.log(new Date, 'vc api', `token: ${this.token.substr(0,4)}..xxx`);
+        }
     }
 
     async call(method, params) {
@@ -25,16 +25,16 @@ module.exports = class {
 
         const reqHeaders = {};
 
-        reqHeaders['X-Device-Token'] = this.currentTokenValue;
+        reqHeaders['X-Device-Token'] = this.token;
 
         if (this.possessToken) {
             reqHeaders['X-Device-Possession-Token'] = this.possessToken;
         }
 
-        let resHeaders;
+        let respHeaders;
 
         if (this.conf.verbose) {
-            console.log('VCRU API CALL:', method, JSON.stringify(params));
+            console.log(new Date, 'VCRU API CALL:', method, JSON.stringify(params));
         }
 
         const response = await fetch(url, {
@@ -42,33 +42,61 @@ module.exports = class {
             body: reqParams,
             headers: reqHeaders,
         }).then(res => {
-            resHeaders = res.headers.raw();
+            respHeaders = res.headers.raw();
             return res.json();
         });
 
-        // fixed delay after each query
-        // assuming we have single thread
-        // TODO @marsgpl: move to mutex-like delays with queue
-        await wait(this.conf.waitAfterEachCallMs);
+        if (this.responseSaysTokenIsBanned(response)) {
+            this.tokenIndex++;
+            if (this.tokenIndex > this.conf.tokens.length)
 
-        if (String(response && response.message).indexOf('вы не робот') > -1) {
-            this.currentToken = nextTokenTab[this.currentToken];
-            const newTokenValue = this.conf[this.currentToken];
-            console.log(`token ${this.currentTokenValue} -> ${newTokenValue}`);
-            this.currentTokenValue = newTokenValue;
-
-            console.log('wait 5s');
-            await wait(5000);
-            console.log('wait 5s DONE');
-
-            return this.call(method, params);
+            this.token =
+        this.tokenIndex = 0;
+        this.token = this.conf.tokens[this.tokenIndex];
         }
 
+
+            this.currentToken = nextTokenTab[this.currentToken];
+            const newTokenValue = this.conf[this.currentToken];
+            console.log(new Date, `token ${this.currentTokenValue} -> ${newTokenValue}`);
+            this.currentTokenValue = newTokenValue;
+
+            console.log(new Date, `token rotation wait ${this.conf.waitOnTokenRotation}ms`);
+            await wait(this.conf.waitOnTokenRotation);
+
+            return this.call(method, params);
+
+
+        // fixed delay after each query
+        // assuming we have single thread
+        // TODO @marsgpl: move to mutex-like delays with queue to support multithread
+        console.log(new Date, `api call wait ${this.conf.waitAfterEachCallMs}ms`);
+        await wait(this.conf.waitAfterEachCallMs);
+
         return {
-            headers: resHeaders,
             response,
+            headers: respHeaders,
         };
     }
+
+    responseSaysTokenIsBanned(response) {
+        const msg = String(response && response.message || '');
+        return msg.toLowerCase().indexOf('робот') > -1;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     async possess(subsiteId) {
         const result = await this.call('/auth/possess', {
@@ -95,12 +123,6 @@ module.exports = class {
         return data;
     }
 
-    /**
-     * post.subsiteId
-     * post.title
-     * post.text
-     * [post.attachments]
-     */
     async createPost(post) {
         const params = {};
 
@@ -220,11 +242,6 @@ module.exports = class {
         };
     }
 
-    /**
-     * comment.forPostId
-     * [comment.forCommentId]
-     * comment.text
-     */
     async createComment(comment) {
         const params = {};
 

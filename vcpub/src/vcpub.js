@@ -12,5 +12,6 @@ pub.main().catch(error => {
     setTimeout(() => {
         console.log(new Date, 'destroying');
         pub.destroy();
+        process.exit(1);
     }, FALLBACK_TIMEOUT_MS);
 });
