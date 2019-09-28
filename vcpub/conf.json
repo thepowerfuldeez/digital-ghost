@@ -1,11 +1,16 @@
 {
-    "sleepIntervalMs": 300000,
+    "sleepIntervalMs": 60000,
     "mongo": {
         "url": "mongodb://root:7kB5RqW8wQ572nGOUmp5t4@95.213.38.3:27017",
-        "urlDev": "mongodb://root:7kB5RqW8wQ572nGOUmp5t4@mongo:27017",
+        "url_": "mongodb://root:7kB5RqW8wQ572nGOUmp5t4@mongo:27017",
         "options": {
             "useNewUrlParser": true,
             "useUnifiedTopology": true
+        },
+        "db": "vk-data",
+        "collections": {
+            "posts": "final_posts",
+            "comments": "final_comments"
         }
     },
     "vcru": {

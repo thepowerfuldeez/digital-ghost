@@ -1,4 +1,4 @@
-const MongoClient = require('mongodb').MongoClient;
+const { MongoClient, ObjectID } = require('mongodb');
 const VcruApi = require('./VcruApi');
 const wait = require('./wait');
 
@@ -18,12 +18,18 @@ module.exports = class {
 
     async init() {
         console.log(new Date, 'init mongo');
-        this.mongo = await this.initMongo();
+        this.mongo = {
+            client: await this.initMongo(),
+        };
+
+        this.mongo.db = this.mongo.client.db(this.conf.mongo.db);
+        this.mongo.posts = this.mongo.db.collection(this.conf.mongo.collections.posts);
+        this.mongo.comments = this.mongo.db.collection(this.conf.mongo.collections.comments);
     }
 
     destroy() {
         console.log(new Date, 'closing mongo');
-        this.mongo && this.mongo.close();
+        this.mongo && this.mongo.client && this.mongo.client.close();
     }
 
     initMongo() {
@@ -40,35 +46,368 @@ module.exports = class {
         }
     }
 
-    // await this.vcruApi.possess(this.conf.vcru.subsite.id);
-    // await this.vcruApi.likePost(pr.id, 1);
-    // await this.vcruApi.likeComment(cr2.id, -1);
     async process() {
+        const mongoPost = await this.bookLatestPostFromMongo();
+        if (!mongoPost) return;
+
+        const comments = await this.bookCommentsFromMongoForPostId(mongoPost.id, 6);
+
+        const commentsPerSection = Math.floor(comments.length / 2);
+        const commentsLimit = commentsPerSection + (commentsPerSection*2===comments.length ? 0 : 1);
+
+        const positiveComments = comments.slice(0, commentsLimit);
+        const negativeComments = comments.slice(commentsLimit);
+
+        if (!positiveComments.length && !negativeComments.length) {
+            console.log('skip post:', mongoPost._id, 'no comments');
+            await this.fallbackMongoPost(mongoPost._id, 'no_comments');
+            return await this.process();
+        }
+
+        const vcPost = await this.mongoPostToVcPost(mongoPost, positiveComments, negativeComments);
+
         try {
-            const pr = await this.vcruApi.createPost({
-                subsiteId: this.conf.vcru.subsite.id,
-                title: 'Команда Digital Ghost захватила власть в ' + Math.random(),
-                text: 'Это текстовый блок.<br />Здесь работают мягкие переносы <i>строк</i> и <b>жирность</b> со <a href="https://ya.ru/" rel="nofollow noreferrer noopener" target="_blank">ссылками</a>.\nа еще есть параграфы\nлалала ' + Math.random(),
-                attachmentsUrls: [
-                    'https://eki.one/etc/dg1.jpg',
-                    'https://eki.one/etc/dg2.jpg',
-                ],
-            });
-
-            console.log('pr:', pr);
-
-            // const cr = await this.vcruApi.createComment({
-            //     forPostId: pr.id,
-            //     text: 'Норм пост',
-            // });
-
-            // const cr2 = await this.vcruApi.createComment({
-            //     forPostId: pr.id,
-            //     forCommentId: cr.id,
-            //     text: 'Нет, не согласен',
-            // });
-        } catch (err) {
-            console.log('catch err:', err);
+            const pr = await this.vcruApi.createPost(vcPost);
+            await this.updateMongoPostByVc(mongoPost._id, pr);
+            await this.updateMongoCommentsBySuccess(positiveComments, negativeComments);
+        } catch (error) {
+            console.log('vc post error:', error);
+            await this.fallbackMongoPost(mongoPost._id, error);
+            await this.fallbackMongoComments(positiveComments, negativeComments);
         }
     }
+
+    async updateMongoCommentsBySuccess(comments) {
+        const _ids = comments.map(comment => new ObjectID(comment._id));
+
+        await this.mongo.comments.updateMany({
+            _id: { $in: _ids },
+        }, {
+            $set: {
+                state: 'published',
+            },
+        });
+    }
+
+    async fallbackMongoComments(comments) {
+        const _ids = comments.map(comment => new ObjectID(comment._id));
+
+        await this.mongo.comments.updateMany({
+            _id: { $in: _ids },
+        }, {
+            $set: {
+                state: 'not_published',
+            },
+        });
+    }
+
+    async fallbackMongoPost(postMongoId, error) {
+        const filter = {
+            _id: new ObjectID(postMongoId),
+        };
+
+        const update = {
+            $set: {
+                state: 'pub_error',
+                vcPubError: JSON.stringify(error),
+            },
+        };
+
+        await this.mongo.posts.updateOne(filter, update);
+    }
+
+    async updateMongoPostByVc(postMongoId, vcPostData) {
+        const filter = {
+            _id: new ObjectID(postMongoId),
+        };
+
+        const update = {
+            $set: {
+                state: 'published',
+                vcruId: vcPostData.id,
+                vcruUrl: vcPostData.url,
+                vcruPubDate: new Date,
+            }
+        };
+
+        await this.mongo.posts.updateOne(filter, update);
+    }
+
+    /**
+     * берет свежайший пост и бронирует его через state
+     */
+    async bookLatestPostFromMongo() {
+        const filter = {
+            state: 'not_published',
+            'comments.count': { $gt: 0 },
+        };
+
+        const update = {
+            $set: {
+                state: 'publishing',
+            },
+        };
+
+        const options = {
+            sort: {
+                _id: -1,
+            },
+            limit: 1,
+        };
+
+        const result = await this.mongo.posts.findOneAndUpdate(filter, update, options);
+
+        return result.value;
+    }
+
+    async mongoPostToVcPost(mongoPost, positiveComments, negativeComments) {
+        return {
+            subsiteId: this.conf.vcru.subsite.id,
+            title: this.detectTitleInMongoPost(mongoPost),
+            // text: this.detectTextInMongoPost(mongoPost),
+            attachments: this.detectAttachmentsInMongoPost(mongoPost),
+            entry: await this.detectEntryInMongoPost(mongoPost, positiveComments, negativeComments),
+        };
+    }
+
+    /**
+     * берем первое предложение поста
+     */
+    detectTitleInMongoPost(mongoPost) {
+        return mongoPost.title;
+
+        // const text = String(mongoPost.text || '');
+
+        // const sentenceSepExpr = /[\.\?\!\n]/;
+
+        // const m = text.match(sentenceSepExpr);
+
+        // if (m && m.index) {
+        //     return text.substr(0, m.index).trim();
+        // }
+
+        // return text.substr(0, 128).trim();
+    }
+
+    async bookCommentsFromMongoForPostId(parsedPostId, limit) {
+        const filter = {
+            post_id: parsedPostId,
+            state: 'not_published',
+        };
+
+        const options = {
+            limit,
+            sort: {
+                popularity: -1,
+            }
+        };
+
+        const result = await this.mongo.comments.find(filter, options).toArray();
+
+        const _ids = result.map(comment => new ObjectID(comment._id));
+
+        await this.mongo.comments.updateMany({
+            _id: { $in: _ids },
+        }, {
+            $set: {
+                state: 'publishing',
+            },
+        });
+
+        return result;
+    }
+
+    async detectEntryInMongoPost(mongoPost, positiveComments, negativeComments) {
+        const entry = {
+            blocks: [],
+        };
+
+        const shortDescr = mongoPost.description;
+
+        entry.blocks.push({
+            type: 'text',
+            cover: true,
+            data: {
+                format: 'html',
+                text: shortDescr,
+                text_truncated: '<<<same>>>',
+            },
+        });
+
+        const fullDescr = mongoPost.text;
+
+        entry.blocks.push({
+            type: 'text',
+            data: {
+                format: 'html',
+                text: fullDescr,
+                text_truncated: '<<<same>>>',
+            },
+        });
+
+        let items;
+
+        if (positiveComments.length) {
+            entry.blocks.push({
+                type: 'header',
+                anchor: 'positive',
+                data: {
+                    style: 'h4',
+                    text: '<p>Позитивные мнения:</p>',
+                },
+            });
+
+            items = positiveComments.map(comment => {
+                const sourceUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
+                const sourceUrlShort = comment.user.first_name || 'Аноним';
+                const text = comment.text;
+
+                return `<a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a>: ${text}`;
+            });
+
+            entry.blocks.push({
+                type: 'list',
+                data: {
+                    type: 'UL',
+                    items,
+                },
+            });
+        }
+
+        if (negativeComments.length) {
+            entry.blocks.push({
+                type: 'header',
+                anchor: 'negative',
+                data: {
+                    style: 'h4',
+                    text: '<p>Негативные мнения:</p>',
+                },
+            });
+
+            items = negativeComments.map(comment => {
+                const sourceUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
+                const sourceUrlShort = comment.user.first_name || 'Аноним';
+                const text = comment.text;
+
+                return `<a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a>: ${text}`;
+            });
+
+            entry.blocks.push({
+                type: 'list',
+                data: {
+                    type: 'UL',
+                    items,
+                },
+            });
+        }
+
+        const sourceUrl = mongoPost.url;
+
+        const sourceUrlShort = sourceUrl
+            .replace(/^[a-z]+:\/\//i, '')
+            .replace(/\?.*?$/, '');
+
+        entry.blocks.push({
+            type: 'text',
+            anchor: 'source',
+            data: {
+                format: 'html',
+                text: `<p>Источник: <a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a></p>`,
+                text_truncated: '<<<same>>>',
+            },
+        });
+
+        return entry;
+    }
+
+    /**
+     * отрезаем первое предложение поста
+     */
+    detectTextInMongoPost(mongoPost) {
+        return mongoPost.description + '\n\n' + mongoPost.text;
+
+        // let text = String(mongoPost.text || '');
+
+        // const title = this.detectTitleInMongoPost(mongoPost);
+
+        // text = text.substr(title.length).replace(/^[\.\?\!\n]+/, '').trim();
+
+        // return text;
+    }
+
+    detectAttachmentsInMongoPost(mongoPost) {
+        const atts = [];
+
+        let hasPhotos = false;
+        let candidateLinkPhotoUrl;
+
+        if (mongoPost.attachments && mongoPost.attachments.length) {
+            mongoPost.attachments.forEach(attachment => {
+                if (attachment.type === 'photo' && attachment.photo) {
+                    const size = attachment.photo.sizes
+                        && attachment.photo.sizes[attachment.photo.sizes.length-1];
+
+                    if (size && size.url) {
+                        atts.push({
+                            type: 'photo',
+                            url: size.url,
+                        });
+                        hasPhotos = true;
+                    }
+                } else if (attachment.type === 'link' && attachment.link) {
+                    if (attachment.link.url) {
+                        atts.push({
+                            type: 'link',
+                            url: attachment.link.url,
+                        });
+                    }
+
+                    if (attachment.link.photo) {
+                        const size = attachment.link.photo.sizes
+                            && attachment.link.photo.sizes[attachment.link.photo.sizes.length-1];
+
+                        if (size && size.url) {
+                            candidateLinkPhotoUrl = size.url;
+                        }
+                    }
+                }
+            });
+        }
+
+        if (!hasPhotos && candidateLinkPhotoUrl) {
+            atts.unshift({
+                type: 'photo',
+                url: candidateLinkPhotoUrl,
+            });
+        }
+
+        return atts;
+    }
 }
+
+// await this.vcruApi.possess(this.conf.vcru.subsite.id);
+
+// await this.vcruApi.likePost(pr.id, 1);
+
+// await this.vcruApi.likeComment(cr2.id, -1);
+
+// const pr = await this.vcruApi.createPost({
+//     subsiteId: this.conf.vcru.subsite.id,
+//     title: 'Команда Digital Ghost захватила власть в ' + Math.random(),
+//     text: 'Это текстовый блок.<br />Здесь работают мягкие переносы <i>строк</i> и <b>жирность</b> со <a href="https://ya.ru/" rel="nofollow noreferrer noopener" target="_blank">ссылками</a>.\nа еще есть параграфы\nлалала ' + Math.random(),
+//     attachmentsUrls: [
+//         'https://eki.one/etc/dg1.jpg',
+//         'https://eki.one/etc/dg2.jpg',
+//     ],
+// });
+
+// const cr = await this.vcruApi.createComment({
+//     forPostId: pr.id,
+//     text: 'Норм пост',
+// });
+
+// const cr2 = await this.vcruApi.createComment({
+//     forPostId: pr.id,
+//     forCommentId: cr.id,
+//     text: 'Нет, не согласен',
+// });
