@@ -1,4 +1,4 @@
-version: '2.0'
+version: "2.0"
 services:
   mongo:
     image: mongo:4.2.0
@@ -18,3 +18,11 @@ services:
     environment:
       TZ: Etc/UTC
     command: npm run vcpub
+  vkparser:
+    build: ../vkparser
+    volumes:
+      - ../vkparser/src/:/vkparser/src/:ro
+    restart: always
+    environment:
+      TZ: Etc/UTC
+    command: npm run build && npm run deploy
