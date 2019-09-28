@@ -113,7 +113,7 @@ module.exports = class {
 
         const update = {
             $set: {
-                state: 'pub_error',
+                state: 'not_published',
                 vcPubError: JSON.stringify(error),
             },
         };
@@ -179,7 +179,7 @@ module.exports = class {
      * берем первое предложение поста
      */
     detectTitleInMongoPost(mongoPost) {
-        return mongoPost.title.replace(/https?:\/\/([a-zа-яёЁ]+)?$/i, '');
+        return mongoPost.title.replace(/https?:\/\/([a-zа-яёЁ]+)?$/i, '').trim();
 
         // const text = String(mongoPost.text || '');
 
