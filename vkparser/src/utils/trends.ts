@@ -2,6 +2,7 @@
 import gtrend from "google-trends-api";
 import { connectToDb, bulkUpsert } from "./mongo";
 import { finished } from "stream";
+import { getMinMongoRes } from "./common";
 
 const category = ["b", "e", "t", "s", "h"];
 
@@ -35,7 +36,9 @@ async function fetchTrends(category: string) {
 
 export async function getTrends() {
   for (const cat of category) {
-    await fetchTrends(cat);
+    const res = await fetchTrends(cat);
+    const log = getMinMongoRes(res);
+    console.log(log);
   }
   console.log("finish parsing trends");
 }

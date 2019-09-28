@@ -6,3 +6,15 @@ export function sliceArrayToChunk<T>(array: T[], size: number) {
   }
   return chunks;
 }
+
+export function getMinMongoRes(res: any) {
+  if (res) {
+    const logRes = {
+      nInserted: res.nInserted,
+      nUpserted: res.nUpserted,
+      nModified: res.nModified,
+      nMatched: res.nMatched,
+    };
+    return logRes;
+  }
+}
