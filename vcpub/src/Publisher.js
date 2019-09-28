@@ -2,6 +2,9 @@ const { MongoClient, ObjectID } = require('mongodb');
 const VcruApi = require('./VcruApi');
 const wait = require('./wait');
 
+const URL_REGEX = /(https?:\/\/)?([^@:]:[^@:]+@)?([\-a-zа-яёЁ0-9\._]{1,256}\.[a-zа-яёЁ0-9\-]{2,24}|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})(:[0-9]{1,5})?\/?([^\s]+)?/ig;
+const URL_BAD_LAST_SYMBOLS_REGEX = /[\]\)\},\.:;\?\!"'\-]$/;
+
 module.exports = class {
     constructor(conf) {
         this.conf = conf;
@@ -49,6 +52,8 @@ module.exports = class {
     async process() {
         const mongoPost = await this.bookLatestPostFromMongo();
         if (!mongoPost) return;
+
+        console.log('using post mongoId=' + mongoPost._id);
 
         const comments = await this.bookCommentsFromMongoForPostId(mongoPost.id, 6);
 
@@ -174,7 +179,7 @@ module.exports = class {
      * берем первое предложение поста
      */
     detectTitleInMongoPost(mongoPost) {
-        return mongoPost.title;
+        return mongoPost.title.replace(/https?:\/\/([a-zа-яёЁ]+)?$/i, '');
 
         // const text = String(mongoPost.text || '');
 
@@ -222,7 +227,7 @@ module.exports = class {
             blocks: [],
         };
 
-        const shortDescr = mongoPost.description;
+        const shortDescr = this.replaceUrls(mongoPost.description);
 
         entry.blocks.push({
             type: 'text',
@@ -234,7 +239,7 @@ module.exports = class {
             },
         });
 
-        const fullDescr = mongoPost.text;
+        const fullDescr = this.replaceUrls(mongoPost.text);
 
         entry.blocks.push({
             type: 'text',
@@ -258,9 +263,10 @@ module.exports = class {
             });
 
             items = positiveComments.map(comment => {
+                comment.user = comment.user || {};
                 const sourceUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
                 const sourceUrlShort = comment.user.first_name || 'Аноним';
-                const text = comment.text;
+                const text = comment.text || '?';
 
                 return `<a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a>: ${text}`;
             });
@@ -285,9 +291,10 @@ module.exports = class {
             });
 
             items = negativeComments.map(comment => {
+                comment.user = comment.user || {};
                 const sourceUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
                 const sourceUrlShort = comment.user.first_name || 'Аноним';
-                const text = comment.text;
+                const text = comment.text || '?';
 
                 return `<a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a>: ${text}`;
             });
@@ -320,11 +327,71 @@ module.exports = class {
         return entry;
     }
 
+    replaceUrls(text) {
+        let m = text.replace(/<a\s+href=.*?>.*?<\/a>/gi, '').match(URL_REGEX);
+
+        if (m) {
+            let used = {};
+            let shadow = '.'.repeat(text.length);
+
+            if (m.length > 1) {
+                m.sort(function(a,b) {
+                    if (a > b) {
+                        return -1;
+                    } else if (a < b) {
+                        return +1;
+                    } else {
+                        return 0;
+                    }
+                });
+            }
+
+            m.forEach(url => {
+                // remove all html
+                url = url.replace(/<\/?.*?\>/ig, '');
+
+                // remove last punctuation sign
+                let last = url.match(URL_BAD_LAST_SYMBOLS_REGEX);
+                if (last && last[0].length == 1) {
+                    url = url.slice(0, -1);
+                }
+
+                if (used[url]) { return }
+
+                let lastPos = 0;
+
+                while ( true ) {
+                    let pos = text.indexOf(url, lastPos);
+                    if (pos < 0) { break };
+
+                    if (shadow.slice(pos, pos+1) === 'x') {
+                        lastPos = pos + url.length;
+                        continue;
+                    }
+
+                    let tag = `<a href="${url}">${url}</a>`;
+
+                    text = text.slice(0, pos) + tag + text.slice(pos + url.length);
+                    shadow = shadow.slice(0, pos) + 'x'.repeat(tag.length) + shadow.slice(pos + url.length);
+
+                    lastPos = pos + tag.length;
+                }
+
+                used[url] = true;
+            });
+
+            text = text.replace(/<a>/ig, '');
+        }
+
+        return text;
+    }
+
     /**
      * отрезаем первое предложение поста
      */
     detectTextInMongoPost(mongoPost) {
-        return mongoPost.description + '\n\n' + mongoPost.text;
+        return this.replaceUrls(mongoPost.description)
+            + '\n\n' + this.replaceUrls(mongoPost.text);
 
         // let text = String(mongoPost.text || '');
 

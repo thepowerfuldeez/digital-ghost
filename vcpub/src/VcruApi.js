@@ -134,11 +134,11 @@ module.exports = class {
                         items: photos.map(data => {
                             data = data[0];
 
-                            data.render = `<div class="andropov_image" style="max-height: 240px;max-width: 240px;" air-module="module.andropov" data-andropov-type="image" data-image-width="240" data-image-height="240" data-image-max-width="240" data-image-max-height="240" data-image-src="https://leonardo.osnova.io/${data.data.uuid}/"><div class="andropov_image__inner" style=";padding-bottom: 100.0000%;background-color: #040404;"></div></div>`;
+                            // data.render = `<div class="andropov_image" style="max-height: 240px;max-width: 240px;" air-module="module.andropov" data-andropov-type="image" data-image-width="240" data-image-height="240" data-image-max-width="240" data-image-max-height="240" data-image-src="https://leonardo.osnova.io/${data.data.uuid}/"><div class="andropov_image__inner" style=";padding-bottom: 100.0000%;background-color: #040404;"></div></div>`;
 
                             return {
-                                title: 'Это изображение, у него может быть описание',
-                                author: 'И Автор',
+                                title: 'Все изображения принадлежат их авторам',
+                                author: 'Digital Ghost',
                                 image: data,
                             };
                         }),
