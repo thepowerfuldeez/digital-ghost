@@ -207,11 +207,101 @@ module.exports = class {
     }
 
     vcPostTitle(post) {
-        return post.title || 'NO TITLE';
+        // TODO @marsgpl filters
+        return (post.title || 'NO TITLE').trim();
     }
 
     async vcPostEntry(post, commentsGood, commentsBad) {
+        const entry = {
+            blocks: [],
+        };
 
+        const subtitle = (post.description || 'NO SUBTITLE').trim();
+
+        entry.blocks.push({
+            type: 'text',
+            cover: true,
+            data: {
+                format: 'html',
+                text: replaceUrls(subtitle),
+                text_truncated: '<<<same>>>',
+            },
+        });
+
+        const text = (post.text || 'NO TEXT').trim();
+
+        entry.blocks.push({
+            type: 'text',
+            data: {
+                format: 'html',
+                text: replaceUrls(text),
+                text_truncated: '<<<same>>>',
+            },
+        });
+
+        if (commentsGood.length) {
+            const items = this.commentsToItems(commentsGood);
+
+            if (items.length) {
+                entry.blocks.push({
+                    type: 'header',
+                    anchor: 'positive',
+                    data: {
+                        style: 'h4',
+                        text: 'Позитивные мнения:',
+                    },
+                });
+
+                entry.blocks.push({
+                    type: 'list',
+                    data: {
+                        type: 'UL',
+                        items,
+                    },
+                });
+            }
+        }
+
+        if (commentsBad.length) {
+            const items = this.commentsToItems(commentsBad);
+
+            if (items.length) {
+                entry.blocks.push({
+                    type: 'header',
+                    anchor: 'negative',
+                    data: {
+                        style: 'h4',
+                        text: 'Негативные мнения:',
+                    },
+                });
+
+                entry.blocks.push({
+                    type: 'list',
+                    data: {
+                        type: 'UL',
+                        items,
+                    },
+                });
+            }
+        }
+
+        const sourceUrl = mongoPost.url;
+
+        const sourceUrlShort = sourceUrl
+            .replace(/^[a-z]+:\/\//i, '')
+            .replace(/\?.*?$/, '');
+
+        entry.blocks.push({
+            type: 'text',
+            anchor: 'source',
+            data: {
+                format: 'html',
+                text: `<p>Источник: <a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a></p>`,
+                text_truncated: '<<<same>>>',
+            },
+        });
+
+        return entry;
     }
 
     async process() {
@@ -315,187 +405,6 @@ module.exports = class {
         };
 
         await this.mongo.posts.updateOne(filter, update);
-    }
-
-    async bookLatestPostFromMongo() {
-        const filter = {
-            state: { $exists: false },
-        };
-
-        const update = {
-            $set: {
-                state: 'publishing',
-            },
-        };
-
-        const options = {
-            sort: {
-                _id: -1,
-            },
-            limit: 1,
-        };
-
-        const result = await this.mongo.trends.findOneAndUpdate(filter, update, options);
-
-        const parsedPostsIds = result && result.value && result.value.post_ids;
-        if (!parsedPostsIds) return;
-
-        const parsedPostId = parsedPostsIds[rnd(0, parsedPostsIds.length - 1)];
-        const post = await this.mongo.posts.findOne({ id:parsedPostId });
-
-        console.log(new Date, 'post:', post);
-        process.exit(1);
-    }
-
-
-
-    detectTitleInMongoPost(mongoPost) {
-        return mongoPost.title.replace(/https?:\/\/([a-zа-яёЁ]+)?$/i, '').trim();
-
-        // const text = String(mongoPost.text || '');
-
-        // const sentenceSepExpr = /[\.\?\!\n]/;
-
-        // const m = text.match(sentenceSepExpr);
-
-        // if (m && m.index) {
-        //     return text.substr(0, m.index).trim();
-        // }
-
-        // return text.substr(0, 128).trim();
-    }
-
-    async bookCommentsFromMongoForPostId(parsedPostId, limit) {
-        const filter = {
-            post_id: parsedPostId,
-            state: 'not_published',
-        };
-
-        const options = {
-            limit,
-            sort: {
-                popularity: -1,
-            }
-        };
-
-        const result = await this.mongo.comments.find(filter, options).toArray();
-
-        const _ids = result.map(comment => new ObjectID(comment._id));
-
-        await this.mongo.comments.updateMany({
-            _id: { $in: _ids },
-        }, {
-            $set: {
-                state: 'publishing',
-            },
-        });
-
-        return result;
-    }
-
-    async detectEntryInMongoPost(mongoPost, positiveComments, negativeComments) {
-        const entry = {
-            blocks: [],
-        };
-
-        const shortDescr = replaceUrls(mongoPost.description);
-
-        entry.blocks.push({
-            type: 'text',
-            cover: true,
-            data: {
-                format: 'html',
-                text: shortDescr,
-                text_truncated: '<<<same>>>',
-            },
-        });
-
-        const fullDescr = replaceUrls(mongoPost.text);
-
-        entry.blocks.push({
-            type: 'text',
-            data: {
-                format: 'html',
-                text: fullDescr,
-                text_truncated: '<<<same>>>',
-            },
-        });
-
-        let items;
-
-        if (positiveComments.length) {
-            entry.blocks.push({
-                type: 'header',
-                anchor: 'positive',
-                data: {
-                    style: 'h4',
-                    text: '<p>Позитивные мнения:</p>',
-                },
-            });
-
-            items = positiveComments.map(comment => {
-                comment.user = comment.user || {};
-                const sourceUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
-                const sourceUrlShort = comment.user.first_name || 'Аноним';
-                const text = comment.text || '?';
-
-                return `<a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a>: ${text}`;
-            });
-
-            entry.blocks.push({
-                type: 'list',
-                data: {
-                    type: 'UL',
-                    items,
-                },
-            });
-        }
-
-        if (negativeComments.length) {
-            entry.blocks.push({
-                type: 'header',
-                anchor: 'negative',
-                data: {
-                    style: 'h4',
-                    text: '<p>Негативные мнения:</p>',
-                },
-            });
-
-            items = negativeComments.map(comment => {
-                comment.user = comment.user || {};
-                const sourceUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
-                const sourceUrlShort = comment.user.first_name || 'Аноним';
-                const text = comment.text || '?';
-
-                return `<a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a>: ${text}`;
-            });
-
-            entry.blocks.push({
-                type: 'list',
-                data: {
-                    type: 'UL',
-                    items,
-                },
-            });
-        }
-
-        const sourceUrl = mongoPost.url;
-
-        const sourceUrlShort = sourceUrl
-            .replace(/^[a-z]+:\/\//i, '')
-            .replace(/\?.*?$/, '');
-
-        entry.blocks.push({
-            type: 'text',
-            anchor: 'source',
-            data: {
-                format: 'html',
-                text: `<p>Источник: <a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a></p>`,
-                text_truncated: '<<<same>>>',
-            },
-        });
-
-        return entry;
     }
 }
 
