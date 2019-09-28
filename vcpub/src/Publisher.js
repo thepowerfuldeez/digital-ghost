@@ -110,7 +110,8 @@ module.exports = class {
 
         const filter = {
             id: postPid,
-            state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
+            // trends is a guarantee for uniqueness of posts
+            // state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
         };
 
         const update = {
@@ -148,14 +149,14 @@ module.exports = class {
         return result;
     }
 
-    vcPostAttachments(mongoPost) {
+    vcPostAttachments(post) {
         const atts = [];
 
         let hasPhotos = false;
         let candidateLinkPhotoUrl;
 
-        if (mongoPost.attachments && mongoPost.attachments.length) {
-            mongoPost.attachments.forEach(attachment => {
+        if (post.attachments && post.attachments.length) {
+            post.attachments.forEach(attachment => {
                 if (attachment.type === 'photo' && attachment.photo) {
                     const size = attachment.photo.sizes
                         && attachment.photo.sizes[attachment.photo.sizes.length-1];
@@ -197,18 +198,20 @@ module.exports = class {
         return atts;
     }
 
-    async createVcPost(post, commentsGood, commentsBad) {
+    async createVcPost(post, commentsGood, commentsBad, trend) {
         return {
             subsiteId: this.conf.vcru.subsite.id,
-            title: this.vcPostTitle(post),
+            title: this.vcPostTitle(post, trend),
             entry: await this.vcPostEntry(post, commentsGood, commentsBad),
-            attachments: this.vcPostAttachments(mongoPost),
+            attachments: this.vcPostAttachments(post),
         };
     }
 
-    vcPostTitle(post) {
+    vcPostTitle(post, trend) {
         // TODO @marsgpl filters
-        return (post.title || 'NO TITLE').trim();
+        return (post.title || trend.trend_snippet || 'NO TITLE')
+            .replace(/&nbsp;/g, ' ')
+            .trim();
     }
 
     async vcPostEntry(post, commentsGood, commentsBad) {
@@ -285,7 +288,7 @@ module.exports = class {
             }
         }
 
-        const sourceUrl = mongoPost.url;
+        const sourceUrl = post.url;
 
         const sourceUrlShort = sourceUrl
             .replace(/^[a-z]+:\/\//i, '')
@@ -317,7 +320,7 @@ module.exports = class {
         console.log(new Date, 'postPid:', postPid);
 
         const post = await this.bookPostByPid(postPid);
-        if (!post) throw 'post not found or already booked';
+        if (!post) throw 'post not found';
 
         this.bookedPostId = post._id;
         console.log(new Date, 'bookedPostId:', this.bookedPostId);
@@ -328,27 +331,42 @@ module.exports = class {
         const commentsGood = comments.slice(0, commentsPerSection);
         const commentsBad = comments.slice(commentsPerSection);
 
-        this.bookedCommentsIds = comments.map(comment => new ObjectID(comment._id));
+        this.currentCommentsIds = comments.map(comment => new ObjectID(comment._id));
 
         console.log(new Date, 'comments:', comments.length);
         console.log(new Date, 'commentsGood:', commentsGood.length);
         console.log(new Date, 'commentsBad:', commentsBad.length);
-        console.log(new Date, 'bookedCommentsIds:', this.bookedCommentsIds);
+        console.log(new Date, 'currentCommentsIds:', this.currentCommentsIds);
 
-        const vcPost = await this.createVcPost(post, commentsGood, commentsBad);
+        const vcPost = await this.createVcPost(post, commentsGood, commentsBad, trend);
 
-        console.log('vcPost:', vcPost);
-        process.exit(1);
+        console.log(new Date, 'vcPost title:', vcPost.title.length);
+        console.log(new Date, 'vcPost attachments:', vcPost.attachments.length);
 
-        try {
-            const pr = await this.vcruApi.createPost(vcPost);
-            await this.updateMongoPostByVc(mongoPost._id, pr);
-            await this.updateMongoCommentsBySuccess(positiveComments, negativeComments);
-        } catch (error) {
-            console.log(new Date, 'vc post error:', error);
-            await this.fallbackMongoPost(mongoPost._id, error);
-            await this.fallbackMongoComments(positiveComments, negativeComments);
-        }
+        console.log(new Date, 'posting to vcru');
+        const pr = await this.vcruApi.createPost(vcPost);
+        await this.updatePostByVc(this.bookedPostId, pr);
+
+        console.log(new Date, 'lifecycle DONE');
+    }
+
+    async updatePostByVc(this.bookedPostId, pr) {
+        console.log(new Date, 'vcruId', pr.id);
+        console.log()
+
+    }
+
+    async failTrend() {
+        if (!this.bookedTrendId) return;
+
+        console.log(new Date, 'unbooking trendId:', this.bookedTrendId);
+
+    }
+
+    async failPost() {
+        if (!this.bookedPostId) return;
+
+        console.log(new Date, 'unbooking postId:', this.bookedPostId);
     }
 
     async updateMongoCommentsBySuccess(comments) {
@@ -375,7 +393,7 @@ module.exports = class {
         });
     }
 
-    async fallbackMongoPost(postMongoId, error) {
+    async fallbackPost(postMongoId, error) {
         const filter = {
             _id: new ObjectID(postMongoId),
         };
@@ -390,7 +408,7 @@ module.exports = class {
         await this.mongo.posts.updateOne(filter, update);
     }
 
-    async updateMongoPostByVc(postMongoId, vcPostData) {
+    async updatePostByVc(postMongoId, vcPostData) {
         const filter = {
             _id: new ObjectID(postMongoId),
         };
