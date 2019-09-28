@@ -25,4 +25,4 @@ services:
     restart: always
     environment:
       TZ: Etc/UTC
-    command: npm run build && npm run deploy
+    command: npm run deploy
