@@ -14,14 +14,8 @@ async function getTopPosts(subject: Subject, col: Collection) {
       date: { $gt: dayAgo },
     })
     .sort({ "views.count": -1 })
-    .limit(5)
+    .limit(20)
     .toArray();
-
-  posts.forEach(x => {
-    const state: State = "not_published";
-    x.state = state;
-    return x;
-  });
 
   return posts;
 }
@@ -43,12 +37,16 @@ export async function populateTopPostsComments() {
     comments.push(...data);
   }
 
+  const bulk = finalCommentsCol.initializeUnorderedBulkOp();
+
   comments.forEach(x => {
-    const state: State = "not_published";
-    x.state = state;
+    bulk
+      .find({ id: x.id })
+      .upsert()
+      .update({ $set: x, $setOnInsert: { state: "not_published" } });
   });
 
-  const res = await bulkUpsert(comments, finalCommentsCol, "id");
+  const res = await bulk.execute();
   console.log("populated final comments");
   const log = getMinMongoRes(res);
   console.log(log);
@@ -66,7 +64,16 @@ async function populateTopPosts() {
     posts.push(...data);
   }
 
-  let res = await bulkUpsert(posts, finalPostsCol, "id");
+  const bulk = finalPostsCol.initializeUnorderedBulkOp();
+
+  posts.forEach(x => {
+    bulk
+      .find({ id: x.id })
+      .upsert()
+      .update({ $set: x, $setOnInsert: { state: "not_published" } });
+  });
+
+  const res = await bulk.execute();
   console.log("populated final posts");
   let log = getMinMongoRes(res);
   console.log(log);
