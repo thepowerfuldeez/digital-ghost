@@ -60,3 +60,4 @@ function initSheduler() {
 }
 
 initSheduler();
+parse("posts", getPosts);

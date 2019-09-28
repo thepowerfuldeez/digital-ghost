@@ -22,7 +22,7 @@ export async function getPosts(parser: VK, subject: Subject) {
       parseDate: { $lt: lastParseLimit },
     })
     .sort({ members_count: -1 })
-    .project({ id: 1, _id: 0, members_count: 1 })
+    .project({ id: 1, _id: 0, members_count: 1, description: 1 })
     .limit(100)
     .toArray();
 
@@ -66,9 +66,10 @@ async function getPostByGroupId(
       // добавляем метку темы, число юзеров в группе и популярность для поиска в дальнейшем
       x.subject = subject.id;
       x.members_count = group.members_count;
+      x.description = group.description;
       x.parseDate = 0;
       if (x.likes && x.views && x.views.count > 0) {
-        x.popylarity = x.likes.count / x.views.count;
+        x.popularity = x.likes.count / x.views.count;
       }
       return x;
     });

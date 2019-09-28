@@ -1,8 +1,7 @@
-import { Subject, connectToDb, getSubjects, bulkUpsert } from "./mongo";
+import { Subject, connectToDb, getSubjects } from "./mongo";
 import { Collection } from "mongodb";
 import { getMinMongoRes } from "./common";
 
-type State = "published" | "not_published" | "pub_error";
 const day = 60 * 60 * 24;
 
 async function getTopPosts(subject: Subject, col: Collection) {
@@ -10,6 +9,7 @@ async function getTopPosts(subject: Subject, col: Collection) {
   const dayAgo = today - day;
   const posts = await col
     .find({
+      $expr: { $gt: [{ $strLenCP: "$text" }, 50] },
       subject: subject.id,
       date: { $gt: dayAgo },
     })

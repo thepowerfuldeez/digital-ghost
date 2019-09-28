@@ -85,7 +85,7 @@ async function getCommentsByPostId(
       // добавляем метку темы, для поиска в дальнейшем
       x.subject = subject.id;
       if (x.likes && post.views && post.views.count > 0) {
-        x.popylarity = x.likes.count / post.views.count;
+        x.popularity = x.likes.count / post.views.count;
         x.postViews = post.views.count;
       }
 
