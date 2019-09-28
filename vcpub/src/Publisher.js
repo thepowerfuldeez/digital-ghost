@@ -369,7 +369,8 @@ module.exports = class {
                         continue;
                     }
 
-                    let tag = `<a href="${url}">${url}</a>`;
+                    let urlFull = (url.indexOf('http') === 0 || url.indexOf('//') === 0) ? url : '//';
+                    let tag = `<a href="${urlFull}" target="_blank">${url}</a>`;
 
                     text = text.slice(0, pos) + tag + text.slice(pos + url.length);
                     shadow = shadow.slice(0, pos) + 'x'.repeat(tag.length) + shadow.slice(pos + url.length);
