@@ -1,0 +1,9 @@
+tensorflow==1.13.1
+tensorflow-hub
+tf-sentencepiece
+simpleneighbors
+pymongo
+tqdm
+pandas
+scikit-learn
+emoji
