@@ -55,19 +55,16 @@ module.exports = class {
     async loop() {
         while (true) {
             try {
+                // await this.vcruApi.possess(this.conf.vcru.subsite.id);
                 await this.process();
-
-                this.successTrend();
-                this.successPost();
-                this.successComments();
             } catch (error) {
                 console.log(new Date, 'Error:', error);
 
-                this.failTrend();
-                this.failPost();
+                this.failTrend(error);
+                this.failPost(error);
             }
 
-            console.log(new Date, `iteration wait ${this.conf.sleepIntervalMs}ms`);
+            console.log(new Date, `iteration wait: ${this.conf.sleepIntervalMs}ms`);
             await wait(this.conf.sleepIntervalMs);
         }
     }
@@ -110,7 +107,7 @@ module.exports = class {
 
         const filter = {
             id: postPid,
-            // trends is a guarantee for uniqueness of posts
+            // trends is a guarantee for uniqueness of posts and comments
             // state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
         };
 
@@ -134,7 +131,8 @@ module.exports = class {
 
         const filter = {
             post_id: postPid,
-            state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
+            // trends is a guarantee for uniqueness of posts and comments
+            // state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
         };
 
         const options = {
@@ -307,6 +305,25 @@ module.exports = class {
         return entry;
     }
 
+    commentsToItems(comments) {
+        const items = [];
+
+        comments.forEach(comment => {
+            comment.user = comment.user || {};
+
+            // TODO @marsgpl community url
+            const authorUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
+            // TODO @marsgpl community name
+            const authorName = comment.user.first_name || 'Аноним';
+            // TODO @marsgpl attachments
+            const text = comment.text || '?';
+
+            return `<a href="${authorUrl}" target="_blank">${authorName}</a>: ${text}`;
+        });
+
+        return items;
+    }
+
     async process() {
         const trend = await this.bookTopTrend();
         if (!trend) throw 'no trends left';
@@ -342,80 +359,28 @@ module.exports = class {
 
         console.log(new Date, 'vcPost title:', vcPost.title.length);
         console.log(new Date, 'vcPost attachments:', vcPost.attachments.length);
-
+throw 'bbbbbbb';
         console.log(new Date, 'posting to vcru');
         const pr = await this.vcruApi.createPost(vcPost);
+
         await this.updatePostByVc(this.bookedPostId, pr);
+        await this.successTrend();
+        await this.successComments();
 
         console.log(new Date, 'lifecycle DONE');
     }
 
-    async updatePostByVc(this.bookedPostId, pr) {
-        console.log(new Date, 'vcruId', pr.id);
-        console.log()
+    async updatePostByVc(postId, vcPostData) {
+        console.log(new Date, 'vcruPostId', vcPostData.id);
+        console.log(new Date, 'vcruPostUrl', vcPostData.url);
 
-    }
-
-    async failTrend() {
-        if (!this.bookedTrendId) return;
-
-        console.log(new Date, 'unbooking trendId:', this.bookedTrendId);
-
-    }
-
-    async failPost() {
-        if (!this.bookedPostId) return;
-
-        console.log(new Date, 'unbooking postId:', this.bookedPostId);
-    }
-
-    async updateMongoCommentsBySuccess(comments) {
-        const _ids = comments.map(comment => new ObjectID(comment._id));
-
-        await this.mongo.comments.updateMany({
-            _id: { $in: _ids },
-        }, {
-            $set: {
-                state: 'published',
-            },
-        });
-    }
-
-    async fallbackMongoComments(comments) {
-        const _ids = comments.map(comment => new ObjectID(comment._id));
-
-        await this.mongo.comments.updateMany({
-            _id: { $in: _ids },
-        }, {
-            $set: {
-                state: 'not_published',
-            },
-        });
-    }
-
-    async fallbackPost(postMongoId, error) {
         const filter = {
-            _id: new ObjectID(postMongoId),
+            _id: new ObjectID(postId),
         };
 
         const update = {
             $set: {
-                state: 'not_published',
-                vcPubError: JSON.stringify(error),
-            },
-        };
-
-        await this.mongo.posts.updateOne(filter, update);
-    }
-
-    async updatePostByVc(postMongoId, vcPostData) {
-        const filter = {
-            _id: new ObjectID(postMongoId),
-        };
-
-        const update = {
-            $set: {
-                state: 'published',
+                state: STATUS_PUBLISHED,
                 vcruId: vcPostData.id,
                 vcruUrl: vcPostData.url,
                 vcruPubDate: new Date,
@@ -423,6 +388,64 @@ module.exports = class {
         };
 
         await this.mongo.posts.updateOne(filter, update);
+    }
+
+    async failTrend(error) {
+        if (!this.bookedTrendId) return;
+        console.log(new Date, 'unbooking trendId:', this.bookedTrendId);
+
+        await this.mongo.trends.updateOne({
+            _id: new ObjectID(this.bookedTrendId),
+        }, {
+            $set: {
+                state: STATUS_NOT_PUBLISHED,
+                error: JSON.stringify(error),
+            },
+        });
+
+        delete this.bookedTrendId;
+    }
+
+    async failPost(error) {
+        if (!this.bookedPostId) return;
+        console.log(new Date, 'unbooking postId:', this.bookedPostId);
+
+        await this.mongo.posts.updateOne({
+            _id: new ObjectID(this.bookedPostId),
+        }, {
+            $set: {
+                state: STATUS_NOT_PUBLISHED,
+                error: JSON.stringify(error),
+            },
+        });
+
+        delete this.bookedPostId;
+    }
+
+    async successTrend() {
+        if (!this.bookedTrendId) return;
+        console.log(new Date, 'successing trendId:', this.bookedTrendId);
+
+        await this.mongo.trends.updateOne({
+            _id: new ObjectID(this.bookedTrendId),
+        }, {
+            $set: {
+                state: STATUS_PUBLISHED,
+            },
+        });
+    }
+
+    async successComments() {
+        if (!this.currentCommentsIds || !this.currentCommentsIds.length) return;
+        console.log(new Date, 'successing currentCommentsIds:', this.currentCommentsIds);
+
+        await this.mongo.comments.updateMany({
+            _id: { $in: this.currentCommentsIds },
+        }, {
+            $set: {
+                state: STATUS_PUBLISHED,
+            },
+        });
     }
 }
 

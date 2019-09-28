@@ -5,6 +5,7 @@ const wait = require('./wait');
 module.exports = class {
     constructor(conf) {
         this.conf = conf;
+
         this.tokenIndex = 0;
         this.token = this.conf.tokens[this.tokenIndex];
 
@@ -14,7 +15,7 @@ module.exports = class {
         }
     }
 
-    async call(method, params) {
+    async callMethod(method, params) {
         const url = this.conf.rootPath + method;
 
         const reqParams = new URLSearchParams;
@@ -47,30 +48,18 @@ module.exports = class {
         });
 
         if (this.responseSaysTokenIsBanned(response)) {
-            this.tokenIndex++;
-            if (this.tokenIndex > this.conf.tokens.length)
+            this.rotateToken();
 
-            this.token =
-        this.tokenIndex = 0;
-        this.token = this.conf.tokens[this.tokenIndex];
-        }
-
-
-            this.currentToken = nextTokenTab[this.currentToken];
-            const newTokenValue = this.conf[this.currentToken];
-            console.log(new Date, `token ${this.currentTokenValue} -> ${newTokenValue}`);
-            this.currentTokenValue = newTokenValue;
-
-            console.log(new Date, `token rotation wait ${this.conf.waitOnTokenRotation}ms`);
+            console.log(new Date, `token rotation wait: ${this.conf.waitOnTokenRotation}ms`);
             await wait(this.conf.waitOnTokenRotation);
 
-            return this.call(method, params);
-
+            return this.callMethod(method, params);
+        }
 
         // fixed delay after each query
         // assuming we have single thread
         // TODO @marsgpl: move to mutex-like delays with queue to support multithread
-        console.log(new Date, `api call wait ${this.conf.waitAfterEachCallMs}ms`);
+        console.log(new Date, `api call wait: ${this.conf.waitAfterEachCallMs}ms`);
         await wait(this.conf.waitAfterEachCallMs);
 
         return {
@@ -79,39 +68,40 @@ module.exports = class {
         };
     }
 
+    rotateToken() {
+        this.tokenIndex++;
+
+        if (this.tokenIndex > this.conf.tokens.length - 1) {
+            this.tokenIndex = 0;
+        }
+
+        this.token = this.conf.tokens[this.tokenIndex];
+
+        if (this.conf.verbose) {
+            console.log(new Date, 'vc api', `rotating token index to: ${this.tokenIndex}`);
+            console.log(new Date, 'vc api', `rotating token to: ${this.token.substr(0,4)}..xxx`);
+        }
+    }
+
     responseSaysTokenIsBanned(response) {
         const msg = String(response && response.message || '');
         return msg.toLowerCase().indexOf('робот') > -1;
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     async possess(subsiteId) {
-        const result = await this.call('/auth/possess', {
+        const result = await this.callMethod('/auth/possess', {
             id: subsiteId,
         });
 
         this.possessToken = result.headers['X-Device-Possession-Token'.toLowerCase()];
 
         if (!this.possessToken) {
-            throw 'possess failed: result=' + JSON.stringify(result);
+            throw 'X-Device-Possession-Token not found in response. result=' + JSON.stringify(result);
         }
     }
 
     async attachUrl(url) {
-        const result = await this.call('/uploader/extract', { url });
+        const result = await this.callMethod('/uploader/extract', { url });
 
         const data = result && result.response && result.response.result || [];
         const error = result && result.response && result.response.error;
@@ -193,7 +183,7 @@ module.exports = class {
             //         anchor: 'links',
             //         data: {
             //             style: 'h4',
-            //             text: '<p>Ссылки</p>',
+            //             text: 'Ссылки',
             //         },
             //     });
 
@@ -222,7 +212,7 @@ module.exports = class {
             }
         }
 
-        const result = await this.call('/entry/create', params);
+        const result = await this.callMethod('/entry/create', params);
         const data = result && result.response && result.response.result || {};
         // const message = result && result.response && result.response.message;
         // const error = result && result.response && result.response.error;
@@ -248,7 +238,7 @@ module.exports = class {
             params.reply_to = comment.forCommentId;
         }
 
-        const result = await this.call('/comment/add', params);
+        const result = await this.callMethod('/comment/add', params);
         const data = result && result.response && result.response.result || {};
         const message = String(result && result.response && result.response.message || '');
         const error = result && result.response && result.response.error;
@@ -272,7 +262,7 @@ module.exports = class {
     }
 
     async likePost(postId, sign) {
-        const result = await this.call('/like', {
+        const result = await this.callMethod('/like', {
             id: postId,
             type: 'content',
             sign,
@@ -282,7 +272,7 @@ module.exports = class {
     }
 
     async likeComment(commentId, sign) {
-        const result = await this.call('/like', {
+        const result = await this.callMethod('/like', {
             id: commentId,
             type: 'comment',
             sign,
