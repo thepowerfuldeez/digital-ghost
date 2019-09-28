@@ -9,11 +9,6 @@ module.exports = class {
     constructor(conf) {
         this.conf = conf;
         this.vcruApi = new VcruApi(conf.vcru.api);
-
-        const TXT = `Он мог стать лучше Третьяка, но спился и повесился. А теперь его медали продают за пять тысяч евро sport-express.ru/hockey/reviews/v-internete-prodayut-medali-sovetskogo-golkipera-evgeniya-belosheykina-1591714/`;
-
-        console.log('TXT:', this.replaceUrls(TXT));
-        process.exit(1);
     }
 
     async main() {
