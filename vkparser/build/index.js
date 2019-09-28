@@ -47,4 +47,5 @@ function initSheduler() {
     });
 }
 initSheduler();
+populate_1.populateTop();
 //# sourceMappingURL=index.js.map

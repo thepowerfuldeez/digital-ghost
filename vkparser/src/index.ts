@@ -60,3 +60,4 @@ function initSheduler() {
 }
 
 initSheduler();
+populateTop();

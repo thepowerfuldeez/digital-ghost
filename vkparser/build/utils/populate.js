@@ -4,14 +4,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongo_1 = require("./mongo");
-const common_1 = require("./common");
 const sum_1 = __importDefault(require("sum"));
 const day = 60 * 60 * 24;
 const hashReg = /#[^\s]+/;
 const urlReg = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
 async function getTopPosts(subject, col) {
     const today = Math.floor(Date.now() / 1000);
-    const dayAgo = today - day;
+    const dayAgo = today - day * 2;
     const posts = await col
         .find({
         $expr: { $gt: [{ $strLenCP: "$text" }, 200] },
@@ -19,7 +18,7 @@ async function getTopPosts(subject, col) {
         date: { $gt: dayAgo },
     })
         .sort({ "views.count": -1 })
-        .limit(30)
+        .limit(50)
         .toArray();
     posts.forEach(x => {
         let text = x.text;
@@ -59,7 +58,7 @@ async function populateTopPostsComments() {
     const commentsCol = await db.collection("raw_comments");
     const finalCommentsCol = await db.collection("final_comments");
     const posts = await finalPostsCol
-        .find({})
+        .find({ state: "not_published" })
         .project({ id: 1 })
         .toArray();
     const comments = [];
@@ -67,17 +66,15 @@ async function populateTopPostsComments() {
         const data = await commentsCol.find({ post_id: post.id }).toArray();
         comments.push(...data);
     }
-    const bulk = finalCommentsCol.initializeUnorderedBulkOp();
-    comments.forEach(x => {
-        bulk
-            .find({ id: x.id })
-            .upsert()
-            .update({ $set: x, $setOnInsert: { state: "not_published" } });
+    const promices = comments.map(x => {
+        x.state = "not_published";
+        const prom = finalCommentsCol.insert(x).catch(err => {
+            console.error(err.message);
+        });
+        return prom;
     });
-    const res = await bulk.execute();
+    await Promise.all(promices);
     console.log("populated final comments");
-    const log = common_1.getMinMongoRes(res);
-    console.log(log);
 }
 exports.populateTopPostsComments = populateTopPostsComments;
 async function populateTopPosts() {
@@ -90,17 +87,15 @@ async function populateTopPosts() {
         const data = await getTopPosts(subj, postsCol);
         posts.push(...data);
     }
-    const bulk = finalPostsCol.initializeUnorderedBulkOp();
-    posts.forEach(x => {
-        bulk
-            .find({ id: x.id })
-            .upsert()
-            .update({ $set: x, $setOnInsert: { state: "not_published" } });
+    const promices = posts.map(x => {
+        x.state = "not_published";
+        const prom = finalPostsCol.insert(x).catch(err => {
+            console.error(err.message);
+        });
+        return prom;
     });
-    const res = await bulk.execute();
+    await Promise.all(promices);
     console.log("populated final posts");
-    let log = common_1.getMinMongoRes(res);
-    console.log(log);
 }
 async function populateTop() {
     await populateTopPosts();
