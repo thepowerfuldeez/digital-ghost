@@ -40,30 +40,33 @@ module.exports = class {
         }
     }
 
+    // await this.vcruApi.possess(this.conf.vcru.subsite.id);
+    // await this.vcruApi.likePost(pr.id, 1);
+    // await this.vcruApi.likeComment(cr2.id, -1);
     async process() {
         try {
-            // await this.vcruApi.possess(this.conf.vcru.subsite.id);
-
             const pr = await this.vcruApi.createPost({
                 subsiteId: this.conf.vcru.subsite.id,
-                title: 'Команда Digital Ghost захватила власть в Боливии r:' + Date.now(),
-                text: 'Это текстовый блок.<br />Здесь работают мягкие переносы <i>строк</i> и <b>жирность</b> со <a href="https://ya.ru/" rel="nofollow noreferrer noopener" target="_blank">ссылками</a>.\nа еще есть параграфы\nлалала r:' + Date.now(),
+                title: 'Команда Digital Ghost захватила власть в ' + Math.random(),
+                text: 'Это текстовый блок.<br />Здесь работают мягкие переносы <i>строк</i> и <b>жирность</b> со <a href="https://ya.ru/" rel="nofollow noreferrer noopener" target="_blank">ссылками</a>.\nа еще есть параграфы\nлалала ' + Math.random(),
+                attachmentsUrls: [
+                    'https://eki.one/etc/dg1.jpg',
+                    'https://eki.one/etc/dg2.jpg',
+                ],
             });
 
-            const cr = await this.vcruApi.createComment({
-                forPostId: pr.id,
-                text: 'Норм пост! r:' + Date.now(),
-            });
+            console.log('pr:', pr);
 
-            const cr2 = await this.vcruApi.createComment({
-                forPostId: pr.id,
-                forCommentId: cr.id,
-                text: 'Нет, не согласен. r:' + Date.now(),
-            });
+            // const cr = await this.vcruApi.createComment({
+            //     forPostId: pr.id,
+            //     text: 'Норм пост',
+            // });
 
-            await this.vcruApi.likePost(pr.id, 1);
-
-            await this.vcruApi.likeComment(cr2.id, -1);
+            // const cr2 = await this.vcruApi.createComment({
+            //     forPostId: pr.id,
+            //     forCommentId: cr.id,
+            //     text: 'Нет, не согласен',
+            // });
         } catch (err) {
             console.log('catch err:', err);
         }

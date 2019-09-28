@@ -1,7 +1,8 @@
 {
     "sleepIntervalMs": 300000,
     "mongo": {
-        "url": "mongodb://root:7kB5RqW8wQ572nGOUmp5t4@mongo:27017",
+        "url": "mongodb://root:7kB5RqW8wQ572nGOUmp5t4@95.213.38.3:27017",
+        "urlDev": "mongodb://root:7kB5RqW8wQ572nGOUmp5t4@mongo:27017",
         "options": {
             "useNewUrlParser": true,
             "useUnifiedTopology": true
@@ -10,8 +11,10 @@
     "vcru": {
         "api": {
             "rootPath": "https://api.vc.ru/v1.8",
-            "token": "d08f011c82c623d6b8ba43cc2d6169dbf14d9a391e08edfcab4fabd39b07ba51",
-            "waitAfterEachCallMs": 1000
+            "token_": "d08f011c82c623d6b8ba43cc2d6169dbf14d9a391e08edfcab4fabd39b07ba51",
+            "token": "ddd2dfd2fbea5198fcdba7aa73678ff742ace73fd94f318f84e9d103086c4c75",
+            "waitAfterEachCallMs": 1000,
+            "verbose": true
         },
         "subsite": {
             "id": 369108,
