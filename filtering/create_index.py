@@ -23,5 +23,5 @@ def get_vectors_and_build_index(collection, num_index_trees=40):
 
 if __name__ == "__main__":
     db = MongoClient(host=mongo_host, port=mongo_port, username=mongo_user, password=mongo_pass)[mongo_db]
-    index = get_vectors_and_build_index(db.posts)
+    index = get_vectors_and_build_index(db.raw_posts)
     index.save(index_prefix)

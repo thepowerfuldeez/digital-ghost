@@ -33,11 +33,11 @@ def compute_vectors_on_collection(collection, q, chunksize=1024):
                 id_ = items[i]['_id']
                 if len(cleaned_text) > 40:
                     num_processed += 1
-                    db.posts.update_one({"_id": id_}, {"$set": {"vector": vectors[i].tolist()}})
+                    collection.update_one({"_id": id_}, {"$set": {"vector": vectors[i].tolist()}})
             pbar.update(chunksize)
     print(f"processed {num_processed} documents")
     return num_processed
 
 if __name__ == "__main__":
     db = MongoClient(host=mongo_host, port=mongo_port, username=mongo_user, password=mongo_pass)[mongo_db]
-    compute_vectors_on_collection(db.posts, query_posts)
+    compute_vectors_on_collection(db.raw_posts, query_posts)
