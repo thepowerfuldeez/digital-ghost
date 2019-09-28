@@ -1,8 +1,11 @@
 import { Subject, connectToDb, getSubjects } from "./mongo";
 import { Collection } from "mongodb";
 import { getMinMongoRes } from "./common";
+import sum from "sum";
 
 const day = 60 * 60 * 24;
+const hashReg = /#[^\s]+/;
+const urlReg = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
 
 async function getTopPosts(subject: Subject, col: Collection) {
   const today = Math.floor(Date.now() / 1000);
@@ -14,8 +17,48 @@ async function getTopPosts(subject: Subject, col: Collection) {
       date: { $gt: dayAgo },
     })
     .sort({ "views.count": -1 })
-    .limit(20)
+    .limit(30)
     .toArray();
+
+  posts.forEach(x => {
+    let text = x.text as string;
+
+    // ищем хештеги
+    const tags = [];
+    let tag = text.match(hashReg);
+    while (tag && tag[0]) {
+      tags.push(tag[0]);
+      text = text.replace(tag[0], "");
+      tag = text.match(hashReg);
+    }
+
+    if (tags.length > 0) {
+      x.hashtag = tags;
+    }
+
+    // ищем линки
+    let textWithoutLinks = text;
+
+    const links = [];
+    let link = textWithoutLinks.match(urlReg);
+    while (link && link[0]) {
+      links.push(link[0]);
+      textWithoutLinks = textWithoutLinks.replace(link[0], "");
+      link = textWithoutLinks.match(urlReg);
+    }
+
+    if (links.length > 0) {
+      x.links = links;
+    }
+
+    // добавляем заголовок к статье
+    const abs = sum({
+      corpus: textWithoutLinks,
+    });
+    let title = abs.summary as string;
+    title = title.replace(/\n/g, "");
+    x.title = title;
+  });
 
   return posts;
 }
