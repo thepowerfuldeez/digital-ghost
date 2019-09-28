@@ -55,7 +55,7 @@ function initSheduler() {
 
   // каждые полчаса добавляет 5 топовых постов из каждой группы в финальные таблицы
   schedule.scheduleJob("*/30 * * * *", () => {
-    getTrends();
+    populateTop();
   });
 }
 

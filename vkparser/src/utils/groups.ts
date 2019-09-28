@@ -1,5 +1,5 @@
 import { connectToDb, bulkUpsert, Subject } from "./mongo";
-import VK from "vk-io";
+import VK, { GroupsFields } from "vk-io";
 import { sliceArrayToChunk } from "./common";
 
 export async function getGroups(parser: VK, subject: Subject) {
@@ -35,10 +35,11 @@ export async function getGroups(parser: VK, subject: Subject) {
 
 async function getGroupsById(parser: VK, ids: string[], subject: Subject) {
   try {
+    const fields = ["description", "members_count", "wall"] as GroupsFields[];
     const groups = await parser.api.groups.getById({
       group_ids: ids,
       // нужные нам поля
-      fields: ["description", "members_count"],
+      fields,
     });
 
     groups.forEach(x => {

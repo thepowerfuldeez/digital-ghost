@@ -17,6 +17,7 @@ export async function getPosts(parser: VK, subject: Subject) {
     .find({
       subject: subject.id,
       is_closed: 0,
+      wall: 1,
       members_count: { $gt: 50000 },
       parseDate: { $lt: lastParseLimit },
     })
