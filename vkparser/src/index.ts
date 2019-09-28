@@ -4,6 +4,7 @@ import { getSubjects, Subject } from "./utils/mongo";
 import { getGroups } from "./utils/groups";
 import { getPosts } from "./utils/posts";
 import { getComments } from "./utils/comments";
+import { getTrends, CATEGORY } from "./utils/trends";
 
 const parser = new VK({
   token: config.token,
@@ -33,9 +34,9 @@ async function parse(
   console.log(`${name} parsing takes ${diff / 1000} seconds`);
 }
 
-parse("comments", getComments).catch(err => {
-  console.log(err);
-});
+// parse("comments", getComments).catch(err => {
+//   console.log(err);
+// });
 
 // parse("groups", getGroups).catch(err => {
 //   console.log(err);
@@ -44,3 +45,5 @@ parse("comments", getComments).catch(err => {
 // parse("posts", getPosts).catch(err => {
 //   console.log(err);
 // });
+
+getTrends(CATEGORY.TECH).then(console.log);

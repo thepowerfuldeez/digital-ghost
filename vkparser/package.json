@@ -4,6 +4,7 @@
   "description": "Template node project with typescript, eslint and prettier",
   "main": "test-api.js",
   "dependencies": {
+    "google-trends-api": "^4.9.0",
     "mongodb": "^3.3.2",
     "vk-io": "^4.0.0-rc.20"
   },
