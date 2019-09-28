@@ -9,29 +9,44 @@ module.exports = class {
     async call(method, params) {
         const url = this.conf.rootPath + method;
 
-        const body = new URLSearchParams;
+        const reqParams = new URLSearchParams;
 
         Object.keys(params).forEach(key => {
-            body.append(key, params[key]);
+            reqParams.append(key, params[key]);
         });
 
-        let headers;
+        const reqHeaders = {};
+
+        reqHeaders['X-Device-Token'] = this.conf.token;
+        // reqHeaders['Content-Type'] = 'application/json';
+
+        if (this.possessToken) {
+            reqHeaders['X-Device-Possession-Token'] = this.possessToken;
+        }
+
+        let resHeaders;
+
+        if (this.conf.verbose) {
+            console.log('VCRU API CALL:', method, JSON.stringify(params));
+        }
 
         const response = await fetch(url, {
             method: 'POST',
-            body,
-            headers: {
-                'X-Device-Token': this.conf.token,
-            },
+            body: reqParams,
+            // body: JSON.stringify(params),
+            headers: reqHeaders,
         }).then(res => {
-            headers = res.headers.raw();
+            resHeaders = res.headers.raw();
             return res.json();
         });
 
+        // fixed delay after each query
+        // assuming we have single thread
+        // TODO @marsgpl: move to mutex-like delays with queue
         await wait(this.conf.waitAfterEachCallMs);
 
         return {
-            headers,
+            headers: resHeaders,
             response,
         };
     }
@@ -48,10 +63,24 @@ module.exports = class {
         }
     }
 
+    async attachUrl(url) {
+        const result = await this.call('/uploader/extract', { url });
+
+        const data = result && result.response && result.response.result || [];
+        const error = result && result.response && result.response.error;
+
+        if (!data.length || error) {
+            throw 'Error: attachUrl: result=' + JSON.stringify(result);
+        }
+
+        return data;
+    }
+
     /**
      * post.subsiteId
      * post.title
      * post.text
+     * [post.attachmentsUrls]
      */
     async createPost(post) {
         const params = {};
@@ -59,12 +88,35 @@ module.exports = class {
         params.subsite_id = post.subsiteId;
         params.title = post.title;
         params.text = post.text;
-        // if (post.attachments) params.attachments = JSON.stringify([ { type:'image',data:{.....} } ]);
+
+        let attachments = [];
+
+        if (post.attachmentsUrls) {
+            for (let i=0; i<post.attachmentsUrls.length; ++i) {
+                const url = post.attachmentsUrls[i];
+
+                try {
+                    const atts = await this.attachUrl(url);
+                    attachments = attachments.concat(atts);
+                } catch (error) {
+                    if (this.conf.verbose) {
+                        console.log('VCRU API WARN:', error);
+                    }
+                }
+            }
+        }
+
+        if (attachments.length) {
+            // params.attachments = attachments;
+            params.attachments = JSON.stringify(attachments);
+        }
 
         const result = await this.call('/entry/create', params);
-        const data = result && result.response && result.response.result;
+        const data = result && result.response && result.response.result || {};
+        // const message = result && result.response && result.response.message;
+        // const error = result && result.response && result.response.error;
 
-        if (!data || !data.id) {
+        if (!data.id) {
             throw 'createPost failed: result=' + JSON.stringify(result)
                 + '; post=' + JSON.stringify(post);
         }
@@ -85,13 +137,25 @@ module.exports = class {
 
         params.id = comment.forPostId;
         params.text = comment.text;
-        if (comment.forCommentId) params.reply_to = comment.forCommentId;
-        // if (comment.attachments) params.attachments = JSON.stringify([ { type:'image',data:{.....} } ]);
+
+        if (comment.forCommentId) {
+            params.reply_to = comment.forCommentId;
+        }
 
         const result = await this.call('/comment/add', params);
-        const data = result && result.response && result.response.result;
+        const data = result && result.response && result.response.result || {};
+        const message = String(result && result.response && result.response.message || '');
+        const error = result && result.response && result.response.error;
 
-        if (!data || !data.id) {
+        if (!data.id) {
+            const DUP_ERR_MSG = 'Повторная отправка того же сообщения';
+
+            if (error && message.indexOf(DUP_ERR_MSG) > -1) {
+                return this.createComment(Object.assign({}, comment, {
+                    text: comment.text + '\n' + Math.random(),
+                }));
+            }
+
             throw 'createComment failed: result=' + JSON.stringify(result)
                 + '; comment=' + JSON.stringify(comment);
         }
