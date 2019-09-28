@@ -21,8 +21,6 @@ async function getComments(parser, subject) {
     const posts = await postCol
         .find({
         subject: subject.id,
-        date: { $gt: lastDateLimit },
-        parseDate: { $lt: lastParseLimit },
     })
         .project({ id: 1, _id: 0, comments: 1, owner_id: 1, likes: 1, views: 1 })
         .toArray();

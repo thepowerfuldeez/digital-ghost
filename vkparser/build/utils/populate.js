@@ -68,9 +68,7 @@ async function populateTopPostsComments() {
     }
     const promices = comments.map(x => {
         x.state = "not_published";
-        const prom = finalCommentsCol.insert(x).catch(err => {
-            console.error(err.message);
-        });
+        const prom = finalCommentsCol.insert(x).catch(err => { });
         return prom;
     });
     await Promise.all(promices);
@@ -89,9 +87,7 @@ async function populateTopPosts() {
     }
     const promices = posts.map(x => {
         x.state = "not_published";
-        const prom = finalPostsCol.insert(x).catch(err => {
-            console.error(err.message);
-        });
+        const prom = finalPostsCol.insert(x).catch(err => { });
         return prom;
     });
     await Promise.all(promices);
