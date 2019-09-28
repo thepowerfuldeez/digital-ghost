@@ -21,7 +21,7 @@ services:
   vkparser:
     build: ../vkparser
     volumes:
-      - ../vkparser/src/:/vkparser/src/:ro
+      - ../vkparser/build/:/vkparser/build/:ro
     restart: always
     environment:
       TZ: Etc/UTC
