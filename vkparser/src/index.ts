@@ -7,6 +7,7 @@ import { getPosts } from "./utils/posts";
 import { getComments } from "./utils/comments";
 import { getTrends } from "./utils/trends";
 import { getMinMongoRes } from "./utils/common";
+import { populateTop } from "./utils/populate";
 
 const parser = new VK({
   token: config.token,
@@ -31,24 +32,29 @@ async function parse(
 }
 
 function initSheduler() {
-  // парсим группы каждый день в 00.00
+  // парсим группы каждый день
   // топовые группы появляются редко, так что чаще и не надо
-  schedule.scheduleJob("0 0 * * *", () => {
+  schedule.scheduleJob("0 */24 * * *", () => {
     parse("groups", getGroups);
   });
 
   // каждые 6 часов парсим посты, чаще не можем из-за лимита в 5000 реквестов с токена
-  schedule.scheduleJob("30 0,6,12,18 * * *", () => {
+  schedule.scheduleJob("15 */6 * * *", () => {
     parse("posts", getPosts);
   });
 
   // каждый час парсим комменты
-  schedule.scheduleJob("0 * * * *", () => {
+  schedule.scheduleJob("45 */1 * * *", () => {
     parse("comments", getComments);
   });
 
   // каждый час парсим гугл-тренды
-  schedule.scheduleJob("48 * * * *", () => {
+  schedule.scheduleJob("10 * * * *", () => {
+    getTrends();
+  });
+
+  // каждые полчаса добавляет 5 топовых постов из каждой группы в финальные таблицы
+  schedule.scheduleJob("*/30 * * * *", () => {
     getTrends();
   });
 }

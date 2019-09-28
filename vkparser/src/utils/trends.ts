@@ -1,7 +1,6 @@
 //eslint-ignore-next-line
 import gtrend from "google-trends-api";
 import { connectToDb, bulkUpsert } from "./mongo";
-import { finished } from "stream";
 import { getMinMongoRes } from "./common";
 
 const category = ["b", "e", "t", "s", "h"];
