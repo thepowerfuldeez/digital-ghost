@@ -25,4 +25,4 @@
 ## Mongo reset pubs
 
     db.final_posts.updateMany({}, { $set:{state:'not_published'}, $unset:{vcPubError:''} });
-    db.final_comments.updateMany({}, { $set:{state:'not_published'}, $unset:{vcPubError:''} });
+    db.comments.updateMany({}, { $set:{state:'not_published'}, $unset:{vcPubError:''} });
