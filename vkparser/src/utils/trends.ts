@@ -23,8 +23,10 @@ async function fetchTrends(category: string) {
   });
   const json = JSON.parse(str);
   const array = json.storySummaries.trendingStories;
+  const now = Date.now();
   array.forEach((x: any) => {
     x.category = category;
+    x.date = now;
     return x;
   });
 
