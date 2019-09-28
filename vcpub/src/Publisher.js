@@ -63,11 +63,11 @@ module.exports = class {
         const positiveComments = comments.slice(0, commentsLimit);
         const negativeComments = comments.slice(commentsLimit);
 
-        if (!positiveComments.length && !negativeComments.length) {
-            console.log('skip post:', mongoPost._id, 'no comments');
-            await this.fallbackMongoPost(mongoPost._id, 'no_comments');
-            return await this.process();
-        }
+        // if (!positiveComments.length && !negativeComments.length) {
+        //     console.log('skip post:', mongoPost._id, 'no comments');
+        //     await this.fallbackMongoPost(mongoPost._id, 'no_comments');
+        //     return await this.process();
+        // }
 
         const vcPost = await this.mongoPostToVcPost(mongoPost, positiveComments, negativeComments);
 
