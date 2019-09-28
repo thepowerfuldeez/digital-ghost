@@ -85,7 +85,6 @@ module.exports = class {
 
         params.subsite_id = post.subsiteId;
         params.title = post.title;
-        params.text = post.text;
 
         let attachments = [];
 
@@ -115,9 +114,6 @@ module.exports = class {
         }
 
         if (post.entry) {
-            delete params.text;
-            delete params.attachments;
-
             const photos = [];
             const links = [];
 
@@ -130,15 +126,16 @@ module.exports = class {
             });
 
             if (photos.length) {
-                post.entry.blocks.splice(1, {
+                post.entry.blocks.splice(1, 0, {
                     type: 'media',
+                    anchor: 'photos',
+                    cover: true,
                     data: {
                         items: photos.map(data => {
-                            console.log('{sdfsdfsdsddfssdf}:', {
-                                title: 'Это изображение, у него может быть описание',
-                                author: 'И Автор',
-                                image: data,
-                            });
+                            data = data[0];
+
+                            data.render = `<div class="andropov_image" style="max-height: 240px;max-width: 240px;" air-module="module.andropov" data-andropov-type="image" data-image-width="240" data-image-height="240" data-image-max-width="240" data-image-max-height="240" data-image-src="https://leonardo.osnova.io/${data.data.uuid}/"><div class="andropov_image__inner" style=";padding-bottom: 100.0000%;background-color: #040404;"></div></div>`;
+
                             return {
                                 title: 'Это изображение, у него может быть описание',
                                 author: 'И Автор',
@@ -178,8 +175,12 @@ module.exports = class {
             // }
 
             params.entry = JSON.stringify(post.entry);
-        } else if (attachments.length) {
-            params.attachments = JSON.stringify(attachments);
+        } else {
+            params.text = post.text;
+
+            if (attachments.length) {
+                params.attachments = JSON.stringify(attachments);
+            }
         }
 
         const result = await this.call('/entry/create', params);
