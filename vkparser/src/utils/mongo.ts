@@ -58,3 +58,22 @@ export async function getSubjects() {
 
   return res;
 }
+
+export async function updateCollection(
+  message: string,
+  array: number[],
+  col: Collection,
+  updateObj: {}
+) {
+  if (!array || array.length === 0) {
+    console.error("resive empty array for update");
+    return;
+  }
+  const bulk = col.initializeUnorderedBulkOp();
+  for (const id of array) {
+    bulk.find({ id }).update(updateObj);
+  }
+  const res = await bulk.execute();
+  console.log(message);
+  return res;
+}

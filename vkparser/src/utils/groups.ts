@@ -6,7 +6,7 @@ export async function getGroups(parser: VK, subject: Subject) {
   // Уменьшаем размер батча для парралельных запросов
   parser.setOptions({ apiExecuteCount: 20 });
   const db = await connectToDb();
-  const groupCol = db.collection("groups");
+  const groupCol = db.collection("raw_groups");
 
   const groups = await parser.api.groups.search({
     q: subject.query,
@@ -44,6 +44,7 @@ async function getGroupsById(parser: VK, ids: string[], subject: Subject) {
     groups.forEach(x => {
       // добавляем метку темы, для поиска в дальнейшем
       x.subject = subject.id;
+      x.parseDate = 0;
       return x;
     });
     return groups;

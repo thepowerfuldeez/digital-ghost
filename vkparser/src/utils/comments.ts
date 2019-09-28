@@ -1,9 +1,15 @@
-import { connectToDb, bulkUpsert, Subject } from "./mongo";
+import { connectToDb, bulkUpsert, Subject, updateCollection } from "./mongo";
 import VK, { WallWallpostFull } from "vk-io";
 import { sliceArrayToChunk } from "./common";
-import { Collection } from "mongodb";
+
+const day = 60 * 60 * 24;
+const hour = 60 * 60;
 
 export async function getComments(parser: VK, subject: Subject) {
+  const today = Math.floor(Date.now() / 1000);
+  const lastParseLimit = today - hour * 1;
+  const lastDateLimit = today - day * 7;
+
   const log = {
     nInserted: 0,
     nUpserted: 0,
@@ -13,12 +19,16 @@ export async function getComments(parser: VK, subject: Subject) {
   // Уменьшаем размер батча для парралельных запросов
   parser.setOptions({ apiExecuteCount: 25 });
   const db = await connectToDb();
-  const postCol = db.collection("posts");
-  const commentCol = db.collection("comments");
+  const postCol = db.collection("raw_posts");
+  const commentCol = db.collection("raw_comments");
 
   const posts = await postCol
-    .find<WallWallpostFull>({ subject: subject.id, parsed: false })
-    .project({ id: 1, _id: 0, comments: 1, owner_id: 1 })
+    .find<WallWallpostFull>({
+      subject: subject.id,
+      date: { $gt: lastDateLimit },
+      parseDate: { $lt: lastParseLimit },
+    })
+    .project({ id: 1, _id: 0, comments: 1, owner_id: 1, likes: 1, views: 1 })
     .toArray();
 
   // постов может быть очень много, делим их на чанки, чтобы не запускать огромные промисы
@@ -41,20 +51,17 @@ export async function getComments(parser: VK, subject: Subject) {
       log.nMatched += res.nMatched;
 
       const postIds = chunk.map(x => x.id);
-      await markPostsParsed(postIds, commentCol);
+      const message =
+        "add parsedDate to posts, timestamp: " +
+        new Date(today * 1000).toLocaleString();
+
+      await updateCollection(message, postIds, postCol, {
+        $set: { parseDate: today },
+      });
     }
     console.log(`write comments to mongo, subject:${subject.name}`);
   }
   return log;
-}
-
-async function markPostsParsed(postIds: number[], col: Collection) {
-  const bulk = col.initializeUnorderedBulkOp();
-  for (const id of postIds) {
-    bulk.find({ id }).update({ $set: { parsed: true } });
-  }
-  await bulk.execute();
-  console.log("add parsed flag for parsed posts");
 }
 
 async function getCommentsByPostId(
@@ -77,6 +84,11 @@ async function getCommentsByPostId(
     comments.forEach(x => {
       // добавляем метку темы, для поиска в дальнейшем
       x.subject = subject.id;
+      if (x.likes && post.views && post.views.count > 0) {
+        x.popylarity = x.likes.count / post.views.count;
+        x.postViews = post.views.count;
+      }
+
       return x;
     });
     return comments;

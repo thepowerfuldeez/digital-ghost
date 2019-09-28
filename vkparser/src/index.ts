@@ -36,3 +36,11 @@ async function parse(
 parse("comments", getComments).catch(err => {
   console.log(err);
 });
+
+// parse("groups", getGroups).catch(err => {
+//   console.log(err);
+// });
+
+// parse("posts", getPosts).catch(err => {
+//   console.log(err);
+// });
