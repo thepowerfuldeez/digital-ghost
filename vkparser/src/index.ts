@@ -1,13 +1,12 @@
 import { VK } from "vk-io";
 import config from "./config";
-import { getSubjects, Subject } from "./utils/mongo";
+import { getSubjects, Subject, connectToDb } from "./utils/mongo";
 import schedule from "node-schedule";
 import { getGroups } from "./utils/groups";
 import { getPosts } from "./utils/posts";
 import { getComments } from "./utils/comments";
 import { getTrends } from "./utils/trends";
 import { getMinMongoRes } from "./utils/common";
-import { populateTop } from "./utils/populate";
 
 const parser = new VK({
   token: config.token,
@@ -51,11 +50,6 @@ function initSheduler() {
   // каждый час парсим гугл-тренды
   schedule.scheduleJob("10 * * * *", () => {
     getTrends();
-  });
-
-  // каждые полчаса добавляет 5 топовых постов из каждой группы в финальные таблицы
-  schedule.scheduleJob("*/30 * * * *", () => {
-    populateTop();
   });
 }
 

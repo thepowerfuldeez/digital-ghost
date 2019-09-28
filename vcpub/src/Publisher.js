@@ -63,11 +63,11 @@ module.exports = class {
         const positiveComments = comments.slice(0, commentsLimit);
         const negativeComments = comments.slice(commentsLimit);
 
-        if (!positiveComments.length && !negativeComments.length) {
-            console.log('skip post:', mongoPost._id, 'no comments');
-            await this.fallbackMongoPost(mongoPost._id, 'no_comments');
-            return await this.process();
-        }
+        // if (!positiveComments.length && !negativeComments.length) {
+        //     console.log('skip post:', mongoPost._id, 'no comments');
+        //     await this.fallbackMongoPost(mongoPost._id, 'no_comments');
+        //     return await this.process();
+        // }
 
         const vcPost = await this.mongoPostToVcPost(mongoPost, positiveComments, negativeComments);
 
@@ -113,7 +113,7 @@ module.exports = class {
 
         const update = {
             $set: {
-                state: 'pub_error',
+                state: 'not_published',
                 vcPubError: JSON.stringify(error),
             },
         };
@@ -179,7 +179,7 @@ module.exports = class {
      * берем первое предложение поста
      */
     detectTitleInMongoPost(mongoPost) {
-        return mongoPost.title.replace(/https?:\/\/([a-zа-яёЁ]+)?$/i, '');
+        return mongoPost.title.replace(/https?:\/\/([a-zа-яёЁ]+)?$/i, '').trim();
 
         // const text = String(mongoPost.text || '');
 

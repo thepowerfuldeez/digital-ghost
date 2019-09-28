@@ -1,9 +1,17 @@
 const fetch = require('node-fetch');
 const wait = require('./wait');
 
+const nextTokenTab = {
+    token: 'token2',
+    token2: 'token3',
+    token3: 'token',
+}
+
 module.exports = class {
     constructor(conf) {
         this.conf = conf;
+        this.currentToken = 'token';
+        this.currentTokenValue = this.conf[this.currentToken];
     }
 
     async call(method, params) {
@@ -17,7 +25,7 @@ module.exports = class {
 
         const reqHeaders = {};
 
-        reqHeaders['X-Device-Token'] = this.conf.token;
+        reqHeaders['X-Device-Token'] = this.currentTokenValue;
 
         if (this.possessToken) {
             reqHeaders['X-Device-Possession-Token'] = this.possessToken;
@@ -42,6 +50,19 @@ module.exports = class {
         // assuming we have single thread
         // TODO @marsgpl: move to mutex-like delays with queue
         await wait(this.conf.waitAfterEachCallMs);
+
+        if (String(response && response.message).indexOf('вы не робот') > -1) {
+            this.currentToken = nextTokenTab[this.currentToken];
+            const newTokenValue = this.conf[this.currentToken];
+            console.log(`token ${this.currentTokenValue} -> ${newTokenValue}`);
+            this.currentTokenValue = newTokenValue;
+
+            console.log('wait 5s');
+            await wait(5000);
+            console.log('wait 5s DONE');
+
+            return this.call(method, params);
+        }
 
         return {
             headers: resHeaders,

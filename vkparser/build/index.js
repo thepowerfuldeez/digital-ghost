@@ -12,7 +12,6 @@ const posts_1 = require("./utils/posts");
 const comments_1 = require("./utils/comments");
 const trends_1 = require("./utils/trends");
 const common_1 = require("./utils/common");
-const populate_1 = require("./utils/populate");
 const parser = new vk_io_1.VK({
     token: config_1.default.token,
     apiMode: "parallel",
@@ -41,9 +40,6 @@ function initSheduler() {
     });
     node_schedule_1.default.scheduleJob("10 * * * *", () => {
         trends_1.getTrends();
-    });
-    node_schedule_1.default.scheduleJob("*/30 * * * *", () => {
-        populate_1.populateTop();
     });
 }
 initSheduler();

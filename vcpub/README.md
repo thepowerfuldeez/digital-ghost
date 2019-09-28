@@ -21,3 +21,8 @@
         --header 'X-Device-Token: XXXXXXXXXXXXXX' \
         --form 'url=http://requestbin.fullcontact.com/1d9hrbq1?token=anystring' \
         --form 'event=new_comment'
+
+## Mongo reset pubs
+
+    db.final_posts.updateMany({}, { $set:{state:'not_published'}, $unset:{vcPubError:''} });
+    db.comments.updateMany({}, { $set:{state:'not_published'}, $unset:{vcPubError:''} });
