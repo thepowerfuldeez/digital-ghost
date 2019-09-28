@@ -7,7 +7,7 @@
 - берет посты из коллекции final_posts где state='not_published'
 - помечает их state='publishing_post'
 - шлет пост в vcru api
-- если ок, помечает как state='publishing_comments'
+- если ок, помечает как state='publishing_comments' vcruId='xxx' vcruUrl='xxx' vcruPubDate=new Date
 - берет комменты по id этого поста где state='not_published'
 - помечает как state='publishing'
 - шлет коммент в vcru api

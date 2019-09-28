@@ -1,13 +1,16 @@
 const Publisher = require('./Publisher');
 const conf = require('../conf.json');
 
+const FALLBACK_TIMEOUT_MS = 1000;
+
 const pub = new Publisher(conf);
 
-pub.main().catch(err => {
-    console.log('Error:', err);
-    console.log('fallback timeout before restart: 1000ms');
+pub.main().catch(error => {
+    console.log(new Date, 'PANIC:', error);
+    console.log(new Date, `fallback timeout before restart: ${FALLBACK_TIMEOUT_MS}ms`);
 
     setTimeout(() => {
-        console.log('restarting ...');
-    }, 1000);
+        console.log(new Date, 'destroying');
+        pub.destroy();
+    }, FALLBACK_TIMEOUT_MS);
 });

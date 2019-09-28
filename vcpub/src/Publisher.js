@@ -1,105 +1,71 @@
-const MongoClient = require("mongodb").MongoClient;
-const fetch = require("node-fetch");
+const MongoClient = require('mongodb').MongoClient;
+const VcruApi = require('./VcruApi');
+const wait = require('./wait');
 
 module.exports = class {
-  constructor(conf) {
-    this.conf = conf;
-  }
-  MongoClientMongoClient;
-  async main() {
-    console.log(new Date(), "init");
-    await this.init();
-    console.log(new Date(), "init DONE");
-
-    console.log(new Date(), "loop");
-    await this.loop();
-    console.log(new Date(), "loop DONE");
-  }
-
-  async init() {
-    console.log(new Date(), "init mongo");
-    await this.initMongo();
-    console.log(new Date(), "init mongo DONE");
-  }
-
-  initMongo() {
-    return MongoClient.connect(this.conf.mongo.url, this.conf.mongo.options);
-  }
-
-  async loop() {
-    while (true) {
-      console.log(new Date(), "processing");
-      await this.process();
-      console.log(new Date(), "processing DONE");
-
-      console.log(new Date(), `waiting ${this.conf.sleepIntervalMs}ms`);
-      await this.wait(this.conf.sleepIntervalMs);
-      console.log(new Date(), "waiting DONE");
+    constructor(conf) {
+        this.conf = conf;
+        this.vcruApi = new VcruApi(conf.vcru.api);
     }
-  }
 
-  async process() {
-    // await this.vcAuth();
+    async main() {
+        console.log(new Date, 'init');
+        await this.init();
 
-    await this.vcCreatePost({
-      title: "Команда Digital Ghost захватила власть в Боливии",
-      text:
-        '<p>Это текстовый блок.<br />Здесь работают мягкие переносы <i>строк</i> и <b>жирность</b> со <a href="https://ya.ru/" rel="nofollow noreferrer noopener" target="_blank">ссылками</a>.</p>'
-    });
-  }
+        console.log(new Date, 'loop');
+        await this.loop();
+    }
 
-  async vcCreatePost(post) {
-    const apiPath = "/entry/create";
+    async init() {
+        console.log(new Date, 'init mongo');
+        this.mongo = await this.initMongo();
+    }
 
-    const params = new URLSearchParams();
+    destroy() {
+        console.log(new Date, 'closing mongo');
+        this.mongo && this.mongo.close();
+    }
 
-    params.append("title", post.title);
-    params.append("subsite_id", this.conf.vcru.subsiteId);
-    params.append("text", post.text);
-    // params.append('attachments', JSON.stringify([ { type:'image',data:{.....} } ]));
+    initMongo() {
+        return MongoClient.connect(this.conf.mongo.url, this.conf.mongo.options);
+    }
 
-    const result = await fetch(this.conf.vcru.apiHost + apiPath, {
-      method: "POST",
-      body: params,
-      headers: {
-        "X-Device-Token": this.conf.vcru.apiToken
-      }
-    }).then(res => res.json());
+    async loop() {
+        while (true) {
+            console.log(new Date, 'processing');
+            await this.process();
 
-    console.log("result:", result);
-  }
+            console.log(new Date, `waiting ${this.conf.sleepIntervalMs}ms`);
+            await wait(this.conf.sleepIntervalMs);
+        }
+    }
 
-  async vcAuth() {
-    let responseHeaders;
+    async process() {
+        try {
+            // await this.vcruApi.possess(this.conf.vcru.subsite.id);
 
-    const apiPath = "/auth/possess";
+            const pr = await this.vcruApi.createPost({
+                subsiteId: this.conf.vcru.subsite.id,
+                title: 'Команда Digital Ghost захватила власть в Боливии r:' + Date.now(),
+                text: 'Это текстовый блок.<br />Здесь работают мягкие переносы <i>строк</i> и <b>жирность</b> со <a href="https://ya.ru/" rel="nofollow noreferrer noopener" target="_blank">ссылками</a>.\nа еще есть параграфы\nлалала r:' + Date.now(),
+            });
 
-    const params = new URLSearchParams();
+            const cr = await this.vcruApi.createComment({
+                forPostId: pr.id,
+                text: 'Норм пост! r:' + Date.now(),
+            });
 
-    params.append("id", this.conf.vcru.subsiteId);
+            const cr2 = await this.vcruApi.createComment({
+                forPostId: pr.id,
+                forCommentId: cr.id,
+                text: 'Нет, не согласен. r:' + Date.now(),
+            });
 
-    const result = await fetch(this.conf.vcru.apiHost + apiPath, {
-      method: "POST",
-      body: params,
-      headers: {
-        "X-Device-Token": this.conf.vcru.apiToken
-      }
-    }).then(res => {
-      responseHeaders = res.headers.raw();
-      return res.json();
-    });
+            await this.vcruApi.likePost(pr.id, 1);
 
-    // console.log('responseHeaders:', responseHeaders);
-    // console.log('result:', result);
-
-    const posToken = responseHeaders["X-Device-Possession-Token".toLowerCase()];
-
-    return posToken;
-  }
-
-  wait(timeMs) {
-    return new Promise(resolve => {
-      setTimeout(resolve, timeMs);
-    });
-  }
-};
+            await this.vcruApi.likeComment(cr2.id, -1);
+        } catch (err) {
+            console.log('catch err:', err);
+        }
+    }
+}
