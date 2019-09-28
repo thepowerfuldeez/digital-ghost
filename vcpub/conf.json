@@ -10,7 +10,7 @@
         "db": "vk-data",
         "collections": {
             "posts": "final_posts",
-            "comments": "final_comments"
+            "comments": "comments"
         }
     },
     "vcru": {
