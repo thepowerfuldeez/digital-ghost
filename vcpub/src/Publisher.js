@@ -214,7 +214,7 @@ module.exports = class {
             attachments: this.vcPostAttachments(post),
         };
 
-        const { short, tail } = this.shortTail(vcPost.title, VC_POST_MAX_TITLE_LENGTH, true);
+        const { short, tail } = this.shortTail(vcPost.title, VC_POST_MAX_TITLE_LENGTH);
 
         if (tail) {
             vcPost.title = short;
@@ -225,68 +225,40 @@ module.exports = class {
     }
 
     shortTail(text, limit, addDots = false) {
-        if (text.length > limit) {
-            let short = text.substr(0, limit)
-                .replace(/[\wа-яёЁ—-]+$/gi, '')
-                .replace(/,[\sa-zа-яёЁ]{1,15}$/i, '')
-                .trim();
-
-            const tail = text.substr(short.length).trim();
-
-            if (addDots) {
-                short += '...';
-            }
-
-            return {
-                short,
-                tail,
-            };
-        } else {
+        if (text.length <= limit) {
             return {
                 short: text,
                 tail: '',
             };
         }
-    }
 
-    splitText(rawText) {
-        const limitLetters = 200;
-        const limitSentences = 2;
-        const minLetters = 120;
+        text = text.replace(/\.{2,}$/g, '').trim();
 
-        let subtitle = '';
+        let short = text.substr(0, limit)
+            .replace(/[^\s\n]+$/, '')
+            .replace(/([\,\.\?\!])[\sa-zа-яёЁ]{1,15}$/i, '$1')
+            .trim();
 
-        let sentences = 0;
-        let iterations = 0;
+        let tail = text.substr(short.length).trim();
 
-        while (true) {
-            if (subtitle.length >= limitLetters) break;
-            if (sentences >= limitSentences && subtitle.length >= minLetters) break;
+        short = short.replace(/[^a-zа-яёЁ]+$/i, '');
 
-            const m = rawText.match(/[\n\<\.\!\?\;]/);
-
-            if (m) {
-                subtitle += rawText.substr(0, m.index + 1);
-                rawText = rawText.substr(m.index + 1);
-                sentences++;
-            } else {
-                break;
-            }
-
-            iterations++;
-            if (iterations > 10) break;
-        }
-
-        const { short, tail } = this.shortTail(subtitle, limitLetters);
-
-        if (tail) {
-            subtitle = short;
-            rawText = tail + rawText;
+        if (addDots) {
+            short += '...';
         }
 
         return {
-            subtitle,
-            text: rawText,
+            short,
+            tail,
+        };
+    }
+
+    splitText(rawText) {
+        const { short, tail } = this.shortTail(rawText, 200, true);
+
+        return {
+            subtitle: short,
+            text: tail,
         }
     }
 
@@ -294,7 +266,7 @@ module.exports = class {
         return text
             .replace(/&nbsp;/g, ' ')
             .replace(/ ([,\.\!\?:;])/g, '$1')
-            .replace(/\n{2,}/g, '\n')
+            .replace(/(\s?\n){2,}/g, '\n')
             .trim();
     }
 
@@ -446,7 +418,9 @@ module.exports = class {
 
         console.log(new Date, 'vcPost title:', vcPost.title.length);
         console.log(new Date, 'vcPost attachments:', vcPost.attachments.length);
-
+console.log('vcPost.title:', vcPost.title);
+console.log('vcPost.entry.blocks:', vcPost.entry.blocks.slice(0, 2));
+throw 213123123;
         console.log(new Date, 'posting to vcru');
         const pr = await this.vcruApi.createPost(vcPost);
 
