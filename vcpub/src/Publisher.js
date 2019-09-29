@@ -247,10 +247,16 @@ module.exports = class {
             short.replace(/([,:—\-])[^,:—\-]+$/, '$1').trim(),
         ];
 
+        const triesLimit = [
+            30,
+            limit/2,
+        ];
+
         for (let i=0; i<tries.length; ++i) {
             const tri = tries[i];
+            const lim = triesLimit[i];
 
-            if (tri !== short && tri.length >= limit/2) {
+            if (tri !== short && tri.length >= lim) {
                 short = tri;
                 break;
             }
