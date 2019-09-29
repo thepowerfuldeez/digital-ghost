@@ -129,13 +129,19 @@ module.exports = class {
                 const url = att.url;
 
                 try {
+                    const data = await this.attachUrl(url);
+
+                    if (data.type === 'error') {
+                        throw data;
+                    }
+
                     attachments.push({
                         type: att.type,
-                        data: await this.attachUrl(url),
+                        data,
                     });
                 } catch (error) {
                     if (this.conf.verbose) {
-                        console.log('VCRU API WARN:', error);
+                        console.log('VCRU API attachments WARN:', url, error);
                     }
                 }
             }
@@ -146,7 +152,7 @@ module.exports = class {
             const links = [];
 
             attachments.forEach(att => {
-                if (att.type === 'photo') {
+                if (att.type === 'photo' && att.data.type !== 'error') {
                     photos.push(att.data);
                 } else if (att.type === 'link') {
                     links.push(att.data);
