@@ -9,6 +9,8 @@ const STATUS_NOT_PUBLISHED = 'not_published'; // or $exists:false
 const STATUS_PUBLISHING = 'publishing';
 const STATUS_PUBLISHED = 'published';
 
+const VC_POST_MAX_TITLE_LENGTH = 117;
+
 module.exports = class {
     constructor(conf) {
         this.conf = conf;
@@ -60,8 +62,8 @@ module.exports = class {
             } catch (error) {
                 console.log(new Date, 'Error:', error);
 
-                this.failTrend(error);
-                this.failPost(error);
+                await this.failTrend(error);
+                await this.failPost(error);
             }
 
             console.log(new Date, `iteration wait: ${this.conf.sleepIntervalMs}ms`);
@@ -126,7 +128,7 @@ module.exports = class {
         return result.value;
     }
 
-    async getCommentsByPostPid(postPid, limit) {
+    async getCommentsByPostPid(postPid, limit, otherPostPids = []) {
         console.log(new Date, 'searching for comments by postPid:', postPid);
 
         const filter = {
@@ -142,7 +144,15 @@ module.exports = class {
             },
         };
 
-        const result = await this.mongo.comments.find(filter, options).toArray();
+        let result = await this.mongo.comments.find(filter, options).toArray();
+
+        if (!result.length) {
+            result = await this.mongo.comments.find({
+                post_id: {
+                    $in: otherPostPids,
+                }
+            }, options).toArray();
+        }
 
         return result;
     }
@@ -186,30 +196,110 @@ module.exports = class {
             });
         }
 
-        if (!hasPhotos && candidateLinkPhotoUrl) {
-            atts.unshift({
-                type: 'photo',
-                url: candidateLinkPhotoUrl,
-            });
-        }
+        // if (!hasPhotos && candidateLinkPhotoUrl) {
+        //     atts.unshift({
+        //         type: 'photo',
+        //         url: candidateLinkPhotoUrl,
+        //     });
+        // }
 
         return atts;
     }
 
     async createVcPost(post, commentsGood, commentsBad, trend) {
-        return {
+        const vcPost = {
             subsiteId: this.conf.vcru.subsite.id,
             title: this.vcPostTitle(post, trend),
             entry: await this.vcPostEntry(post, commentsGood, commentsBad),
             attachments: this.vcPostAttachments(post),
         };
+
+        const { short, tail } = this.shortTail(vcPost.title, VC_POST_MAX_TITLE_LENGTH, true);
+
+        if (tail) {
+            vcPost.title = short;
+            vcPost.entry.blocks[0].data.text = tail + '<br>' + vcPost.entry.blocks[0].data.text;
+        }
+
+        return vcPost;
+    }
+
+    shortTail(text, limit, addDots = false) {
+        if (text.length > limit) {
+            let short = text.substr(0, limit)
+                .replace(/[\wа-яёЁ—-]+$/gi, '')
+                .replace(/,[\sa-zа-яёЁ]{1,15}$/i, '')
+                .trim();
+
+            const tail = text.substr(short.length).trim();
+
+            if (addDots) {
+                short += '...';
+            }
+
+            return {
+                short,
+                tail,
+            };
+        } else {
+            return {
+                short: text,
+                tail: '',
+            };
+        }
+    }
+
+    splitText(rawText) {
+        const limitLetters = 200;
+        const limitSentences = 2;
+        const minLetters = 120;
+
+        let subtitle = '';
+
+        let sentences = 0;
+        let iterations = 0;
+
+        while (true) {
+            if (subtitle.length >= limitLetters) break;
+            if (sentences >= limitSentences && subtitle.length >= minLetters) break;
+
+            const m = rawText.match(/[\n\<\.\!\?\;]/);
+
+            if (m) {
+                subtitle += rawText.substr(0, m.index + 1);
+                rawText = rawText.substr(m.index + 1);
+                sentences++;
+            } else {
+                break;
+            }
+
+            iterations++;
+            if (iterations > 10) break;
+        }
+
+        const { short, tail } = this.shortTail(subtitle, limitLetters);
+
+        if (tail) {
+            subtitle = short;
+            rawText = tail + rawText;
+        }
+
+        return {
+            subtitle,
+            text: rawText,
+        }
+    }
+
+    textNormalizer(text) {
+        return text
+            .replace(/&nbsp;/g, ' ')
+            .replace(/ ([,\.\!\?:;])/g, '$1')
+            .replace(/\n{2,}/g, '\n')
+            .trim();
     }
 
     vcPostTitle(post, trend) {
-        // TODO @marsgpl filters
-        return (post.title || trend.trend_snippet || 'NO TITLE')
-            .replace(/&nbsp;/g, ' ')
-            .trim();
+        return this.textNormalizer(post.title || trend.trend_snippet || '');
     }
 
     async vcPostEntry(post, commentsGood, commentsBad) {
@@ -217,7 +307,7 @@ module.exports = class {
             blocks: [],
         };
 
-        const subtitle = (post.description || 'NO SUBTITLE').trim();
+        const { subtitle, text } = this.splitText(this.textNormalizer(post.text || ''));
 
         entry.blocks.push({
             type: 'text',
@@ -228,8 +318,6 @@ module.exports = class {
                 text_truncated: '<<<same>>>',
             },
         });
-
-        const text = (post.text || 'NO TEXT').trim();
 
         entry.blocks.push({
             type: 'text',
@@ -246,7 +334,6 @@ module.exports = class {
             if (items.length) {
                 entry.blocks.push({
                     type: 'header',
-                    anchor: 'positive',
                     data: {
                         style: 'h4',
                         text: 'Позитивные мнения:',
@@ -269,7 +356,6 @@ module.exports = class {
             if (items.length) {
                 entry.blocks.push({
                     type: 'header',
-                    anchor: 'negative',
                     data: {
                         style: 'h4',
                         text: 'Негативные мнения:',
@@ -294,7 +380,6 @@ module.exports = class {
 
         entry.blocks.push({
             type: 'text',
-            anchor: 'source',
             data: {
                 format: 'html',
                 text: `<p>Источник: <a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a></p>`,
@@ -314,11 +399,13 @@ module.exports = class {
             // TODO @marsgpl community url
             const authorUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
             // TODO @marsgpl community name
-            const authorName = comment.user.first_name || 'Аноним';
+            const authorName = this.textNormalizer(comment.user.first_name || 'Аноним')
+                .substr(0, 32);
             // TODO @marsgpl attachments
-            const text = comment.text || '?';
+            const text = this.textNormalizer(comment.text || '?')
+                .substr(0, 128);
 
-            return `<a href="${authorUrl}" target="_blank">${authorName}</a>: ${text}`;
+            items.push(`<a href="${authorUrl}" target="_blank">${authorName}</a>: ${text}`);
         });
 
         return items;
@@ -343,7 +430,7 @@ module.exports = class {
         console.log(new Date, 'bookedPostId:', this.bookedPostId);
 
         // 3 for good, 3 for bad
-        const comments = await this.getCommentsByPostPid(postPid, 6);
+        const comments = await this.getCommentsByPostPid(postPid, 6, trend.post_ids);
         const commentsPerSection = Math.ceil(comments.length / 2);
         const commentsGood = comments.slice(0, commentsPerSection);
         const commentsBad = comments.slice(commentsPerSection);
@@ -359,7 +446,7 @@ module.exports = class {
 
         console.log(new Date, 'vcPost title:', vcPost.title.length);
         console.log(new Date, 'vcPost attachments:', vcPost.attachments.length);
-throw 'bbbbbbb';
+
         console.log(new Date, 'posting to vcru');
         const pr = await this.vcruApi.createPost(vcPost);
 

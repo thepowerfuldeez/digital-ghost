@@ -85,7 +85,9 @@ module.exports = class {
 
     responseSaysTokenIsBanned(response) {
         const msg = String(response && response.message || '');
-        return msg.toLowerCase().indexOf('робот') > -1;
+
+        return (msg.toLowerCase().indexOf('робот') > -1)
+            // || (msg.toLowerCase().indexOf('ошибка базы') > -1);
     }
 
     async possess(subsiteId) {
@@ -127,17 +129,10 @@ module.exports = class {
                 const url = att.url;
 
                 try {
-                    if (att.type === 'photo') {
-                        attachments.push({
-                            type: att.type,
-                            data: await this.attachUrl(url),
-                        });
-                    } else if (att.type === 'link') {
-                        // attachments.push({
-                        //     type: att.type,
-                        //     data: await this.attachUrl(url),
-                        // });
-                    }
+                    attachments.push({
+                        type: att.type,
+                        data: await this.attachUrl(url),
+                    });
                 } catch (error) {
                     if (this.conf.verbose) {
                         console.log('VCRU API WARN:', error);
@@ -159,9 +154,8 @@ module.exports = class {
             });
 
             if (photos.length) {
-                post.entry.blocks.splice(1, 0, {
+                const block = {
                     type: 'media',
-                    anchor: 'photos',
                     cover: true,
                     data: {
                         items: photos.map(data => {
@@ -174,34 +168,26 @@ module.exports = class {
                         with_background: false,
                         with_border: false,
                     },
-                });
+                };
+
+                post.entry.blocks.splice(1, 0, block);
             }
 
-            // if (links.length) {
-            //     post.entry.blocks.push({
-            //         type: 'header',
-            //         anchor: 'links',
-            //         data: {
-            //             style: 'h4',
-            //             text: 'Ссылки',
-            //         },
-            //     });
+            if (links.length) {
+                const block = {
+                    type: 'link',
+                    cover: !photos.length,
+                    data: {
+                        link: links[0][0],
+                    },
+                };
 
-            //     post.entry.blocks.push({
-            //         type: 'media',
-            //         data: {
-            //             items: links.map(data => {
-            //                 return {
-            //                     title: 'Это изображение, у него может быть описание',
-            //                     author: 'И Автор',
-            //                     image: data,
-            //                 };
-            //             }),
-            //             with_background: false,
-            //             with_border: false,
-            //         },
-            //     });
-            // }
+                if (photos.length) {
+                    post.entry.blocks.push(block);
+                } else {
+                    post.entry.blocks.splice(1, 0, block);
+                }
+            }
 
             params.entry = JSON.stringify(post.entry);
         } else {
