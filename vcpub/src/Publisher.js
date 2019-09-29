@@ -418,9 +418,7 @@ module.exports = class {
 
         console.log(new Date, 'vcPost title:', vcPost.title.length);
         console.log(new Date, 'vcPost attachments:', vcPost.attachments.length);
-console.log('vcPost.title:', vcPost.title);
-console.log('vcPost.entry.blocks:', vcPost.entry.blocks.slice(0, 2));
-throw 213123123;
+
         console.log(new Date, 'posting to vcru');
         const pr = await this.vcruApi.createPost(vcPost);
 
