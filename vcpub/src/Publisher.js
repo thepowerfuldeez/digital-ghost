@@ -307,7 +307,7 @@ module.exports = class {
             .replace(/&quot;?/g, '"')
             .replace(/&amp;?/g, '&')
             .replace(/[><��]/g, '')
-            .repalce(/\[[^\]]+\|([[^\]]+\|?)*\]/g, '')
+            .replace(/\[[^\]]+\|([[^\]]+\|?)*\]/g, '')
             .replace(/ ([,\.\!\?:;])/g, '$1')
             .replace(/(\s?\n){2,}/g, '\n')
             .trim();
