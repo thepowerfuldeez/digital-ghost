@@ -63,6 +63,10 @@ def make_final_posts(collection_trends, q, collection_posts, models, collection_
         for i, post_text in enumerate(posts_sample):
             post_title = get_title(query_vector, post_text)
             raw_posts_sample[i]['title'] = post_title
+            raw_post_text = raw_posts_sample[i]['text']
+            l = len(raw_post_text) // 3
+            raw_post_text = clean_text(raw_post_text[:l], rm_emoji=False, rm_links=False) + raw_post_text[l:2*l] + clean_text(raw_post_text[-l:], rm_emoji=False, rm_links=False)
+            raw_posts_sample[i]['clean_text'] = raw_post_text
             spam_prob = models['antispam'].predict_proba([posts_vectors[i]])[0, 1]
 #             popularity = models['popularity'](posts_vectors)
 #             subject = models['subject'](posts_vectors)
