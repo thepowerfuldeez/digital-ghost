@@ -139,7 +139,7 @@ module.exports = class {
 
         const filter = {
             post_id: postPid,
-            text: { $ne:'' },
+            text: { $ne: '' },
             user: { $exists: true },
             // trends is a guarantee for uniqueness of posts and comments
             // state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
@@ -155,10 +155,12 @@ module.exports = class {
         let result = await this.mongo.comments.find(filter, options).toArray();
 
         if (!result.length) {
+            console.log(new Date, 'searching for comments again by otherPostPids:', otherPostPids);
+
             result = await this.mongo.comments.find({
-                post_id: {
-                    $in: otherPostPids,
-                }
+                post_id: { $in: otherPostPids },
+                text: { $ne: '' },
+                user: { $exists: true },
             }, options).toArray();
         }
 
