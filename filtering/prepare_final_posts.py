@@ -91,10 +91,11 @@ def make_final_posts(collection_trends, q, collection_posts, models, collection_
                 print("added score")
 #             if spam_prob .. popularity .. subject:
             scores[i] = score
+            raw_posts_sample[i]['score'] = score
         print(scores)
         
         for j, score in enumerate(scores):
-            if score > 0.45:
+            if 0 < score < 0.55:
                 try:
                     collection_out.insert_one(raw_posts_sample[j])
                 except: # DuplicateKeyError
