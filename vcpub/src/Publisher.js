@@ -196,20 +196,24 @@ module.exports = class {
                         const size = attachment.link.photo.sizes
                             && attachment.link.photo.sizes[attachment.link.photo.sizes.length-1];
 
-                        if (size && size.url) {
-                            candidateLinkPhotoUrl = size.url;
-                        }
+                        // if (size && size.url) {
+                        //     candidateLinkPhotoUrl = size.url;
+                        // }
+                    }
+                } else if (attachment.type === 'video' && attachment.video) {
+                    if (attachment.video.image) {
+                        candidateLinkPhotoUrl = attachment.video.image[attachment.video.image.length-1];
                     }
                 }
             });
         }
 
-        // if (!hasPhotos && candidateLinkPhotoUrl) {
-        //     atts.unshift({
-        //         type: 'photo',
-        //         url: candidateLinkPhotoUrl,
-        //     });
-        // }
+        if (!hasPhotos && candidateLinkPhotoUrl) {
+            atts.unshift({
+                type: 'photo',
+                url: candidateLinkPhotoUrl,
+            });
+        }
 
         return atts;
     }
