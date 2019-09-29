@@ -302,7 +302,7 @@ module.exports = class {
     }
 
     textNormalizer(text) {
-        return text
+        return String(text || '')
             .replace(/&nbsp;?/g, ' ')
             .replace(/&quot;?/g, '"')
             .replace(/&amp;?/g, '&')
