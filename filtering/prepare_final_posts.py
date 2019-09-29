@@ -54,20 +54,25 @@ def make_final_posts(collection_trends, q, collection_posts, models, collection_
         query_vector = vectorize([clean_text(trend_text)])[0]
         
         # take most similar – minimum distance (temporary solution)
-        idx_min_dist = min(enumerate(dists), key=lambda x: x[1])[0]
-        posts_sample = [posts_sample[idx_min_dist]]
+#         idx_min_dist = min(enumerate(dists), key=lambda x: x[1])[0]
+#         posts_sample = [posts_sample[idx_min_dist]]
         
         # scores for post candidates from top10
         scores = [0 for _ in range(len(dists))]
         posts_vectors = vectorize([clean_text(post) for post in posts_sample])
         for i, post_text in enumerate(posts_sample):
             post_title = get_title(query_vector, post_text)
-            raw_posts[i]['title'] = post_title
+            raw_posts_sample[i]['title'] = post_title
             spam_prob = models['antispam'].predict_proba([posts_vectors[i]])[0, 1]
 #             popularity = models['popularity'](posts_vectors)
 #             subject = models['subject'](posts_vectors)
+
+            no_comments = raw_posts_sample[i]['comments']['count'] < 2
             if spam_prob > 0.66:
                 print("spam", spam_prob)
+                score = 0
+            elif no_comments:
+                print("no comments")
                 score = 0
             else:
                 score = dists[i]
