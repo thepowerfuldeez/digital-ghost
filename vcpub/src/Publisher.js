@@ -238,8 +238,16 @@ module.exports = class {
 
         let short = text.substr(0, limit)
             .replace(/[^\s\n]+$/, '')
-            .replace(/([\,\.\?\!])[\sa-zа-яёЁ]{1,15}$/i, '$1')
             .trim();
+
+        const shortTryHard = short.replace(/([\.?!;])[^\.?!;]+$/, '$1').trim();
+        const shortTrySoft = short.replace(/([,:—\-])[^,:—\-]+$/, '$1').trim();
+
+        if (shortTryHard.length >= limit/2) {
+            short = shortTryHard;
+        } else if (shortTrySoft.length >= limit/2) {
+            short = shortTrySoft;
+        }
 
         let tail = text.substr(short.length).trim();
 
