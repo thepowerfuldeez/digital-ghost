@@ -135,10 +135,10 @@ module.exports = class {
     }
 
     async getCommentsByPostPid(postPid, limit, otherPostPids = []) {
-        console.log(new Date, 'searching for comments by postPid:', postPid);
+        console.log(new Date, 'searching for comments by otherPostPids:', otherPostPids);
 
         const filter = {
-            post_id: postPid,
+            post_id: { $in: otherPostPids },
             text: { $ne: '' },
             user: { $exists: true },
             // trends is a guarantee for uniqueness of posts and comments
@@ -152,17 +152,7 @@ module.exports = class {
             },
         };
 
-        let result = await this.mongo.comments.find(filter, options).toArray();
-
-        if (!result.length) {
-            console.log(new Date, 'searching for comments again by otherPostPids:', otherPostPids);
-
-            result = await this.mongo.comments.find({
-                post_id: { $in: otherPostPids },
-                text: { $ne: '' },
-                user: { $exists: true },
-            }, options).toArray();
-        }
+        const result = await this.mongo.comments.find(filter, options).toArray();
 
         return result;
     }
