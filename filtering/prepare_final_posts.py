@@ -42,7 +42,9 @@ def make_final_posts(collection_trends, q, collection_posts, models, collection_
             continue
         post_texts.append(result_texts)
         raw_posts = list(collection_posts.find({"id": {"$in": it['post_ids']}}))
-        raw_posts_ordering = [result_texts.index(raw_post['text']) for raw_post in raw_posts]
+        try:
+            raw_posts_ordering = [result_texts.index(raw_post['text']) for raw_post in raw_posts]
+        except: continue
         if len(raw_posts_ordering) != len(result_texts) != len(distances):
             continue
         raw_posts = [raw_posts[idx] for idx in raw_posts_ordering]
@@ -61,17 +63,23 @@ def make_final_posts(collection_trends, q, collection_posts, models, collection_
         scores = [0 for _ in range(len(dists))]
         posts_vectors = vectorize([clean_text(post) for post in posts_sample])
         for i, post_text in enumerate(posts_sample):
+            if len(post_text) < 10: continue
             post_title = get_title(query_vector, post_text)
             raw_posts_sample[i]['title'] = post_title
+            raw_posts_sample[i]['trend_snippet'] = trend_text
             raw_post_text = raw_posts_sample[i]['text']
             l = len(raw_post_text) // 3
-            raw_post_text = clean_text(raw_post_text[:l], rm_emoji=False, rm_links=False) + raw_post_text[l:2*l] + clean_text(raw_post_text[-l:], rm_emoji=False, rm_links=False)
+            raw_post_text = " ".join([
+                clean_text(raw_post_text[:l], rm_emoji=False, rm_links=False),
+                raw_post_text[l:2*l],
+                clean_text(raw_post_text[-l:], rm_emoji=False, rm_links=False)
+            ])
             raw_posts_sample[i]['clean_text'] = raw_post_text
             spam_prob = models['antispam'].predict_proba([posts_vectors[i]])[0, 1]
 #             popularity = models['popularity'](posts_vectors)
 #             subject = models['subject'](posts_vectors)
 
-            no_comments = raw_posts_sample[i]['comments']['count'] < 2
+            no_comments = raw_posts_sample[i]['comments']['count'] < 4
             if spam_prob > 0.66:
                 print("spam", spam_prob)
                 score = 0
