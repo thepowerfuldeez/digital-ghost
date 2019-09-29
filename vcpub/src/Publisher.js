@@ -15,12 +15,6 @@ module.exports = class {
     constructor(conf) {
         this.conf = conf;
         this.vcruApi = new VcruApi(conf.vcru.api);
-
-        // const TXT = 'Похоже, что грядущая PlayStation 5 сможет похвастаться не только быстрым SSD-накопителем и рейтрейсингом, но и наличием голосового ассистента вроде Siri.';
-
-        // console.log('this.shortTail():', this.shortTail(TXT, 120));
-
-        // process.exit(1);
     }
 
     async main() {
@@ -271,9 +265,31 @@ module.exports = class {
         }
 
         return {
-            short,
-            tail,
+            short: this.completeBrackets(short),
+            tail: this.completeBrackets(tail),
         };
+    }
+
+    completeBrackets(text) {
+        const brackets = {
+            '«': '»',
+            '"': '"',
+            '(': ')',
+            '[': ']',
+            '{': '}',
+            "'": "'",
+            '`': '`',
+        };
+
+        Object.keys(brackets).forEach(opener => {
+            const closer = brackets[opener];
+
+            if (text.indexOf(opener) > -1 && text.indexOf(closer) < 0) {
+                text += closer;
+            }
+        });
+
+        return text;
     }
 
     splitText(rawText) {
@@ -287,7 +303,11 @@ module.exports = class {
 
     textNormalizer(text) {
         return text
-            .replace(/&nbsp;/g, ' ')
+            .replace(/&nbsp;?/g, ' ')
+            .replace(/&quot;?/g, '"')
+            .replace(/&amp;?/g, '&')
+            .replace(/[><��]/g, '')
+            .repalce(/\[[^\]]+\|([[^\]]+\|?)*\]/g, '')
             .replace(/ ([,\.\!\?:;])/g, '$1')
             .replace(/(\s?\n){2,}/g, '\n')
             .trim();
@@ -377,7 +397,7 @@ module.exports = class {
             type: 'text',
             data: {
                 format: 'html',
-                text: `<p>Источник: <a href="${sourceUrl}" target="_blank">${sourceUrlShort}</a></p>`,
+                text: `<p>Источник: <a href="${sourceUrl.replace(/"/g, '')}" target="_blank">${sourceUrlShort}</a></p>`,
                 text_truncated: '<<<same>>>',
             },
         });
@@ -398,7 +418,7 @@ module.exports = class {
             // TODO @marsgpl attachments
             const text = this.shortTail(this.textNormalizer(comment.text || '?'), 128, true).short;
 
-            items.push(`<a href="${authorUrl}" target="_blank">${authorName}</a>: ${text}`);
+            items.push(`<a href="${authorUrl.replace(/"/g, '')}" target="_blank">${authorName}</a>: ${text}`);
         });
 
         return items;
