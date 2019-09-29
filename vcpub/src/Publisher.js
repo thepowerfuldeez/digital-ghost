@@ -11,6 +11,8 @@ const STATUS_PUBLISHED = 'published';
 
 const VC_POST_MAX_TITLE_LENGTH = 120;
 
+const INVALID_TITLE_REGEXP = /^[^а-яёЁ ]*$|(цена|продам|продаю)\s+|\[[^\]]+\|([[^\]]+\|?)*\]|^.{,14}$/i;
+
 module.exports = class {
     constructor(conf) {
         this.conf = conf;
@@ -302,12 +304,12 @@ module.exports = class {
     }
 
     textNormalizer(text) {
-        return text
+        return String(text || '')
             .replace(/&nbsp;?/g, ' ')
             .replace(/&quot;?/g, '"')
             .replace(/&amp;?/g, '&')
             .replace(/[><��]/g, '')
-            .repalce(/\[[^\]]+\|([[^\]]+\|?)*\]/g, '')
+            .replace(/\[[^\]]+\|([[^\]]+\|?)*\]/g, '')
             .replace(/ ([,\.\!\?:;])/g, '$1')
             .replace(/(\s?\n){2,}/g, '\n')
             .trim();
@@ -351,7 +353,7 @@ module.exports = class {
                     type: 'header',
                     data: {
                         style: 'h4',
-                        text: 'Позитивные мнения:',
+                        text: '😄 Позитивные мнения',
                     },
                 });
 
@@ -373,7 +375,7 @@ module.exports = class {
                     type: 'header',
                     data: {
                         style: 'h4',
-                        text: 'Негативные мнения:',
+                        text: '😡 Негативные мнения',
                     },
                 });
 
