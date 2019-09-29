@@ -194,7 +194,7 @@ module.exports = class {
                     }
                 } else if (attachment.type === 'video' && attachment.video) {
                     if (attachment.video.image) {
-                        candidateLinkPhotoUrl = attachment.video.image[attachment.video.image.length-1];
+                        candidateLinkPhotoUrl = attachment.video.image[attachment.video.image.length-1].url;
                     }
                 }
             });
