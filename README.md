@@ -7,3 +7,4 @@ Digital Ghost VK hack project
 `filtering/create_index.py`
 `filtering/process_trends.py`
 `filtering/prepare_final_posts.py`
+`filtering/prepare_final_comments.py`
