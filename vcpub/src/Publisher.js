@@ -133,6 +133,8 @@ module.exports = class {
 
         const filter = {
             post_id: postPid,
+            text: { $ne:'' },
+            user: { $exists: true },
             // trends is a guarantee for uniqueness of posts and comments
             // state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
         };
