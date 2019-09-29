@@ -30,7 +30,7 @@
 ## Mongo reset pubs
 
     db.trends.updateMany({ state:{$exists:true} }, { $unset:{state:''} });
-    db.raw_posts.updateMany({ state:{$exists:true} }, { $unset:{state:''} });
+    db.final_posts.updateMany({ state:{$exists:true} }, { $unset:{state:''} });
     db.raw_comments.updateMany({ state:{$exists:true} }, { $unset:{state:''} });
 
 ## tokens

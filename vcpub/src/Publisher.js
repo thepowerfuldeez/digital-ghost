@@ -11,7 +11,7 @@ const STATUS_PUBLISHED = 'published';
 
 const VC_POST_MAX_TITLE_LENGTH = 120;
 
-const INVALID_TITLE_REGEXP = /^[^а-яёЁ ]*$|(цена|продам|продаю)\s+|\[[^\]]+\|([[^\]]+\|?)*\]|^.{,14}$/i;
+const INVALID_TITLE_REGEXP = /^[^а-яёЁ ]*$|(цена|продам|продаю)\s+|\[[^\|]+\|([[^\]]+\|?)*\]/i;
 
 module.exports = class {
     constructor(conf) {
@@ -131,10 +131,16 @@ module.exports = class {
     }
 
     async getCommentsByPostPid(postPid, limit, otherPostPids = []) {
-        console.log(new Date, 'searching for comments by otherPostPids:', otherPostPids);
+        const bySinglePost = !(otherPostPids && otherPostPids.length);
+
+        if (bySinglePost) {
+            console.log(new Date, 'searching for comments by postPid:', postPid);
+        } else {
+            console.log(new Date, 'searching for comments by otherPostPids:', otherPostPids);
+        }
 
         const filter = {
-            post_id: { $in: otherPostPids },
+            post_id: bySinglePost ? postPid : { $in: otherPostPids },
             text: { $ne: '' },
             user: { $exists: true },
             // trends is a guarantee for uniqueness of posts and comments
@@ -144,7 +150,7 @@ module.exports = class {
         const options = {
             limit,
             sort: {
-                popularity: -1, // more is first
+                positive_score: -1, // more is first
             },
         };
 
@@ -227,12 +233,27 @@ module.exports = class {
     shortTail(text, limit, addDots = false) {
         if (text.length <= limit) {
             return {
-                short: text,
+                short: this.completeBrackets(text.trim()),
                 tail: '',
             };
         }
 
         text = text.replace(/\.{2,}$/g, '').trim();
+
+        let prevBr = text.substr(0, limit).lastIndexOf('\n');
+        let nextBr = text.substr(limit).indexOf('\n');
+
+        if (nextBr > -1 && nextBr <= limit * 1.2) {
+            return {
+                short: this.completeBrackets(text.substr(0, nextBr).trim()),
+                tail: this.completeBrackets(text.substr(nextBr).trim()),
+            }
+        } else if (prevBr >= 120) {
+            return {
+                short: this.completeBrackets(text.substr(0, prevBr).trim()),
+                tail: this.completeBrackets(text.substr(prevBr).trim()),
+            }
+        }
 
         let short = text.substr(0, limit)
             .replace(/[^\s\n]+$/, '')
@@ -309,14 +330,21 @@ module.exports = class {
             .replace(/&quot;?/g, '"')
             .replace(/&amp;?/g, '&')
             .replace(/[><��]/g, '')
-            .replace(/\[[^\]]+\|([[^\]]+\|?)*\]/g, '')
+            .replace(/\[id[0-9]+\|(.*?)\]/g, '$1')
+            .replace(/\[[^\|]+\|([[^\]]+\|?)*\]/g, '')
             .replace(/ ([,\.\!\?:;])/g, '$1')
             .replace(/(\s?\n){2,}/g, '\n')
             .trim();
     }
 
     vcPostTitle(post, trend) {
-        return this.textNormalizer(post.title || trend.trend_snippet || '');
+        let title = this.textNormalizer(post.title || '');
+
+        if (!title || title.match(INVALID_TITLE_REGEXP) || title.length < 20) {
+            title = this.textNormalizer(post.trend_snippet);
+        }
+
+        return title || '';
     }
 
     async vcPostEntry(post, commentsGood, commentsBad) {
@@ -324,26 +352,31 @@ module.exports = class {
             blocks: [],
         };
 
-        const { subtitle, text } = this.splitText(this.textNormalizer(post.text || ''));
+        const { subtitle, text } = this.splitText(this.textNormalizer(
+            post.clean_text || post.text || ''));
 
-        entry.blocks.push({
-            type: 'text',
-            cover: true,
-            data: {
-                format: 'html',
-                text: replaceUrls(subtitle).replace(/\n/g, '<br>'),
-                text_truncated: '<<<same>>>',
-            },
-        });
+        if (subtitle.length) {
+            entry.blocks.push({
+                type: 'text',
+                cover: true,
+                data: {
+                    format: 'html',
+                    text: replaceUrls(subtitle).replace(/\n/g, '<br>'),
+                    text_truncated: '<<<same>>>',
+                },
+            });
+        }
 
-        entry.blocks.push({
-            type: 'text',
-            data: {
-                format: 'html',
-                text: replaceUrls(text).replace(/\n/g, '<br>'),
-                text_truncated: '<<<same>>>',
-            },
-        });
+        if (text.length) {
+            entry.blocks.push({
+                type: 'text',
+                data: {
+                    format: 'html',
+                    text: replaceUrls(text.replace(/^[^a-z0-9а-яёЁ]+/i, '')).replace(/\n/g, '<br>'),
+                    text_truncated: '<<<same>>>',
+                },
+            });
+        }
 
         if (commentsGood.length) {
             const items = this.commentsToItems(commentsGood);
@@ -426,29 +459,94 @@ module.exports = class {
         return items;
     }
 
+    async bookTopPost() {
+        console.log(new Date, 'booking top post');
+
+        const filter = {
+            state: { $nin: [STATUS_PUBLISHING, STATUS_PUBLISHED] },
+            subject: { $ne: 17 },
+        };
+
+        const update = {
+            $set: {
+                state: STATUS_PUBLISHING,
+            },
+        };
+
+        const options = {
+            sort: {
+                score: 1,
+            },
+            limit: 1,
+        };
+
+        const result = await this.mongo.posts.findOneAndUpdate(filter, update, options);
+
+        return result.value;
+    }
+
     async process() {
-        const trend = await this.bookTopTrend();
-        if (!trend) throw 'no trends left';
+        const trend = {};
+        // const trend = await this.bookTopTrend();
+        // if (!trend) throw 'no trends left';
 
-        this.bookedTrendId = trend._id;
-        console.log(new Date, 'bookedTrendId:', this.bookedTrendId);
+        // this.bookedTrendId = trend._id;
+        // console.log(new Date, 'bookedTrendId:', this.bookedTrendId);
 
-        const postPid = this.getPostPidFromTrend(trend);
-        if (!postPid) throw 'cant detect postPid';
+        // const postPid = this.getPostPidFromTrend(trend);
+        // if (!postPid) throw 'cant detect postPid';
 
-        console.log(new Date, 'postPid:', postPid);
+        // console.log(new Date, 'postPid:', postPid);
 
-        const post = await this.bookPostByPid(postPid);
-        if (!post) throw 'post not found';
+        // const post = await this.bookPostByPid(postPid);
+        // if (!post) throw 'post not found';
+
+        const post = await this.bookTopPost();
+        if (!post) throw 'no posts left';
 
         this.bookedPostId = post._id;
         console.log(new Date, 'bookedPostId:', this.bookedPostId);
 
         // 3 for good, 3 for bad
-        const comments = await this.getCommentsByPostPid(postPid, 6, trend.post_ids);
-        const commentsPerSection = Math.ceil(comments.length / 2);
-        const commentsGood = comments.slice(0, commentsPerSection);
-        const commentsBad = comments.slice(commentsPerSection);
+        // const comments = await this.getCommentsByPostPid(postPid, 6, trend.post_ids);
+        const comments = await this.getCommentsByPostPid(post.id, 10000);
+        const commentsGood = [];
+        const commentsBad = [];
+        const usedCommentsIds = {};
+
+        for (let i=0; i<comments.length; ++i) {
+            const comment = comments[i];
+
+            if (comment.positive_score >= .5) {
+                commentsGood.push(comment);
+                usedCommentsIds[comment._id] = true;
+            } else {
+                break;
+            }
+
+            if (commentsGood.length >= 3) {
+                break;
+            }
+        }
+
+        for (let i=comments.length-1; i>=0; --i) {
+            const comment = comments[i];
+            if (usedCommentsIds[comment._id]) break;
+            usedCommentsIds[comment._id] = true;
+
+            if (comment.positive_score <= .5) {
+                commentsBad.push(comment);
+            } else {
+                break;
+            }
+
+            if (commentsBad.length >= 3) {
+                break;
+            }
+        }
+
+        // const commentsGood = comments.slice(0, commentsPerSection).slice(0, 3);
+        // const commentsBad = comments.slice(commentsPerSection).reverse().slice(0, 3);
 
         this.currentCommentsIds = comments.map(comment => new ObjectID(comment._id));
 
@@ -456,7 +554,8 @@ module.exports = class {
         console.log(new Date, 'commentsGood:', commentsGood.length);
         console.log(new Date, 'commentsBad:', commentsBad.length);
         console.log(new Date, 'currentCommentsIds:', this.currentCommentsIds);
-
+console.log('commentsGood:', commentsGood);
+console.log('commentsBad:', commentsBad);
         const vcPost = await this.createVcPost(post, commentsGood, commentsBad, trend);
 
         console.log(new Date, 'vcPost title:', vcPost.title.length);
