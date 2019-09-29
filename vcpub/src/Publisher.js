@@ -371,11 +371,9 @@ module.exports = class {
             // TODO @marsgpl community url
             const authorUrl = comment.user.url || 'https://vk.com/id' + comment.owner_id;
             // TODO @marsgpl community name
-            const authorName = this.textNormalizer(comment.user.first_name || 'Аноним')
-                .substr(0, 32);
+            const authorName = this.shortTail(this.textNormalizer(comment.user.first_name || 'Аноним'), 32);
             // TODO @marsgpl attachments
-            const text = this.textNormalizer(comment.text || '?')
-                .substr(0, 128);
+            const text = this.shortTail(this.textNormalizer(comment.text || '?'), 128, true).short;
 
             items.push(`<a href="${authorUrl}" target="_blank">${authorName}</a>: ${text}`);
         });
