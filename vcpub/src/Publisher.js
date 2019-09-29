@@ -9,12 +9,18 @@ const STATUS_NOT_PUBLISHED = 'not_published'; // or $exists:false
 const STATUS_PUBLISHING = 'publishing';
 const STATUS_PUBLISHED = 'published';
 
-const VC_POST_MAX_TITLE_LENGTH = 117;
+const VC_POST_MAX_TITLE_LENGTH = 120;
 
 module.exports = class {
     constructor(conf) {
         this.conf = conf;
         this.vcruApi = new VcruApi(conf.vcru.api);
+
+        // const TXT = 'Похоже, что грядущая PlayStation 5 сможет похвастаться не только быстрым SSD-накопителем и рейтрейсингом, но и наличием голосового ассистента вроде Siri.';
+
+        // console.log('this.shortTail():', this.shortTail(TXT, 120));
+
+        // process.exit(1);
     }
 
     async main() {
@@ -240,13 +246,18 @@ module.exports = class {
             .replace(/[^\s\n]+$/, '')
             .trim();
 
-        const shortTryHard = short.replace(/([\.?!;])[^\.?!;]+$/, '$1').trim();
-        const shortTrySoft = short.replace(/([,:—\-])[^,:—\-]+$/, '$1').trim();
+        const tries = [
+            short.replace(/([\.?!;])[^\.?!;]+$/, '$1').trim(),
+            short.replace(/([,:—\-])[^,:—\-]+$/, '$1').trim(),
+        ];
 
-        if (shortTryHard.length >= limit/2) {
-            short = shortTryHard;
-        } else if (shortTrySoft.length >= limit/2) {
-            short = shortTrySoft;
+        for (let i=0; i<tries.length; ++i) {
+            const tri = tries[i];
+
+            if (tri !== short && tri.length >= limit/2) {
+                short = tri;
+                break;
+            }
         }
 
         let tail = text.substr(short.length).trim();
