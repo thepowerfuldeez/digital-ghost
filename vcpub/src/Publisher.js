@@ -288,7 +288,7 @@ module.exports = class {
             cover: true,
             data: {
                 format: 'html',
-                text: replaceUrls(subtitle),
+                text: replaceUrls(subtitle).replace(/\n/g, '<br>'),
                 text_truncated: '<<<same>>>',
             },
         });
@@ -297,7 +297,7 @@ module.exports = class {
             type: 'text',
             data: {
                 format: 'html',
-                text: replaceUrls(text),
+                text: replaceUrls(text).replace(/\n/g, '<br>'),
                 text_truncated: '<<<same>>>',
             },
         });
